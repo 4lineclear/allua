@@ -95,9 +95,8 @@ impl Cursor<'_> {
             // Whitespace sequence.
             c if is_whitespace(c) => self.whitespace(),
 
-            // Raw identifier, raw string literal or identifier.
+            // Raw string literal or identifier.
             'r' => match (self.first(), self.second()) {
-                ('#', c1) if is_id_start(c1) => self.raw_ident(),
                 ('#', _) | ('"', _) => {
                     let res = self.raw_double_quoted_string(1);
                     let suffix_start = self.pos_within_token();
@@ -111,18 +110,7 @@ impl Cursor<'_> {
             },
 
             // Byte literal, byte string literal, raw byte string literal or identifier.
-            'b' => self.c_or_byte_string(
-                |terminated| ByteStr { terminated },
-                |n_hashes| RawByteStr { n_hashes },
-                Some(|terminated| Byte { terminated }),
-            ),
-
-            // c-string literal, raw c-string literal or identifier.
-            'c' => self.c_or_byte_string(
-                |terminated| CStr { terminated },
-                |n_hashes| RawCStr { n_hashes },
-                None,
-            ),
+            'b' => self.byte_string(),
 
             // Identifier (this should be checked after other variant that can
             // start as identifier).
@@ -168,7 +156,7 @@ impl Cursor<'_> {
             '%' => Percent,
 
             // Lifetime or character literal.
-            '\'' => self.lifetime_or_char(),
+            '\'' => self.char(),
 
             // String literal.
             '"' => {
@@ -251,15 +239,6 @@ impl Cursor<'_> {
         Whitespace
     }
 
-    fn raw_ident(&mut self) -> TokenKind {
-        debug_assert!(self.prev() == 'r' && self.first() == '#' && is_id_start(self.second()));
-        // Eat "#" symbol.
-        self.bump();
-        // Eat the identifier part of RawIdent.
-        self.eat_identifier();
-        RawIdent
-    }
-
     fn ident_or_unknown_prefix(&mut self) -> TokenKind {
         debug_assert!(is_id_start(self.prev()));
         // Start is already eaten, eat the rest of identifier.
@@ -267,7 +246,7 @@ impl Cursor<'_> {
         // Known prefixes must have been handled earlier. So if
         // we see a prefix here, it is definitely an unknown prefix.
         match self.first() {
-            // '#' | '"' | '\'' => UnknownPrefix,
+            '#' | '"' | '\'' => InvalidPrefix,
             c if !c.is_ascii() && c.is_emoji_char() => self.fake_ident_or_unknown_prefix(),
             _ => Ident,
         }
@@ -288,41 +267,36 @@ impl Cursor<'_> {
         }
     }
 
-    fn c_or_byte_string(
-        &mut self,
-        mk_kind: impl FnOnce(bool) -> LiteralKind,
-        mk_kind_raw: impl FnOnce(Option<u8>) -> LiteralKind,
-        single_quoted: Option<fn(bool) -> LiteralKind>,
-    ) -> TokenKind {
-        match (self.first(), self.second(), single_quoted) {
-            ('\'', _, Some(mk_kind)) => {
+    fn byte_string(&mut self) -> TokenKind {
+        match (self.first(), self.second()) {
+            ('\'', _) => {
                 self.bump();
                 let terminated = self.single_quoted_string();
                 let suffix_start = self.pos_within_token();
                 if terminated {
                     self.eat_literal_suffix();
                 }
-                let kind = mk_kind(terminated);
+                let kind = Byte { terminated };
                 Literal { kind, suffix_start }
             }
-            ('"', _, _) => {
+            ('"', _) => {
                 self.bump();
                 let terminated = self.double_quoted_string();
                 let suffix_start = self.pos_within_token();
                 if terminated {
                     self.eat_literal_suffix();
                 }
-                let kind = mk_kind(terminated);
+                let kind = ByteStr { terminated };
                 Literal { kind, suffix_start }
             }
-            ('r', '"', _) | ('r', '#', _) => {
+            ('r', '"') | ('r', '#') => {
                 self.bump();
                 let res = self.raw_double_quoted_string(2);
                 let suffix_start = self.pos_within_token();
                 if res.is_ok() {
                     self.eat_literal_suffix();
                 }
-                let kind = mk_kind_raw(res.ok());
+                let kind = RawByteStr { n_hashes: res.ok() };
                 Literal { kind, suffix_start }
             }
             _ => self.ident_or_unknown_prefix(),
@@ -425,7 +399,7 @@ impl Cursor<'_> {
         }
     }
 
-    fn lifetime_or_char(&mut self) -> TokenKind {
+    fn char(&mut self) -> TokenKind {
         debug_assert!(self.prev() == '\'');
         let terminated = self.single_quoted_string();
         let suffix_start = self.pos_within_token();

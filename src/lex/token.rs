@@ -42,9 +42,6 @@ pub enum TokenKind {
     /// Like the above, but containing invalid unicode codepoints.
     InvalidIdent,
 
-    /// "r#ident"
-    RawIdent,
-
     /// Similar to the above, but *always* an error on every edition. This is used
     /// for emoji identifier recovery, as those are not meant to be ever accepted.
     InvalidPrefix,
@@ -148,16 +145,12 @@ pub enum LiteralKind {
     Str { terminated: bool },
     /// "b"abc"", "b"abc"
     ByteStr { terminated: bool },
-    /// `c"abc"`, `c"abc`
-    CStr { terminated: bool },
     /// "r"abc"", "r#"abc"#", "r####"ab"###"c"####", "r#"a". `None` indicates
     /// an invalid literal.
     RawStr { n_hashes: Option<u8> },
     /// "br"abc"", "br#"abc"#", "br####"ab"###"c"####", "br#"a". `None`
     /// indicates an invalid literal.
     RawByteStr { n_hashes: Option<u8> },
-    /// `cr"abc"`, "cr#"abc"#", `cr#"a`. `None` indicates an invalid literal.
-    RawCStr { n_hashes: Option<u8> },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]

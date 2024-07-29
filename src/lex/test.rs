@@ -196,7 +196,7 @@ fn characters() {
 }
 
 #[test]
-fn lifetime() {
+fn incomplete_char() {
     check_lexing(
         "'abc",
         expect![[r#"

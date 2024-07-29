@@ -4,5 +4,5 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-nom = "7.1"
 unicode-ident = "1.0"
+unicode-properties = "0.1.1"

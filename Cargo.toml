@@ -6,3 +6,6 @@ edition = "2021"
 [dependencies]
 unicode-ident = "1.0"
 unicode-properties = "0.1.1"
+
+[dev-dependencies]
+expect-test = "1.5.0"

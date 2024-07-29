@@ -45,16 +45,6 @@ pub enum TokenKind {
     /// "r#ident"
     RawIdent,
 
-    /// An unknown prefix, like `foo#`, `foo'`, `foo"`.
-    ///
-    /// Note that only the
-    /// prefix (`foo`) is included in the token, not the separator (which is
-    /// lexed as its own distinct token). In Rust 2021 and later, reserved
-    /// prefixes are reported as errors; in earlier editions, they result in a
-    /// (allowed by default) lint, and are treated as regular identifier
-    /// tokens.
-    UnknownPrefix,
-
     /// Similar to the above, but *always* an error on every edition. This is used
     /// for emoji identifier recovery, as those are not meant to be ever accepted.
     InvalidPrefix,
@@ -68,9 +58,6 @@ pub enum TokenKind {
         kind: LiteralKind,
         suffix_start: u32,
     },
-
-    /// "'a"
-    Lifetime { starts_with_number: bool },
 
     // One-char tokens:
     /// ";"

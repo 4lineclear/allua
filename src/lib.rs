@@ -20,7 +20,7 @@
 // #![allow(clippy::cast_possible_truncation)]
 // #![allow(clippy::new_without_default)]
 #![allow(missing_docs)]
-#![allow(dead_code)]
+// #![allow(dead_code)]
 
 pub mod error;
 pub mod lex;

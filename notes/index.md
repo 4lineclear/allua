@@ -17,3 +17,5 @@ Notes for the new lang, see [here](./design.md)
 
 Notes for just lua, see [here](./lua.md)
 
+For info about how rustc code was used, see [here](./rustc-info.md)
+

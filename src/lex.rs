@@ -1,8 +1,9 @@
-//! Lexing
+//! pre-lexing
 //!
-//!
-//! Pulled from:
-//! https://github.com/rust-lang/rust/tree/master/compiler/rustc_lexer
+//! At this level, error handling and keywords don't exist
+
+// NOTE: pre-lexing done here
+// must create own post-lexing
 
 use cursor::{Cursor, EOF_CHAR};
 use token::{
@@ -13,60 +14,20 @@ use token::{
 };
 use unicode_properties::UnicodeEmoji;
 
+use util::{is_id_continue, is_id_start, is_whitespace};
+
 #[cfg(test)]
 pub mod test;
 
 pub mod cursor;
 pub mod token;
 pub mod unescape;
+pub mod util;
 
 // TODO: read over, refine, and add clippy lints
 
 pub fn tokenize(input: &str) -> impl Iterator<Item = Token> + '_ {
-    let mut cursor = Cursor::new(input);
-    std::iter::from_fn(move || {
-        let token = cursor.advance_token();
-        if token.kind != TokenKind::Eof {
-            Some(token)
-        } else {
-            None
-        }
-    })
-}
-
-#[must_use]
-pub const fn is_whitespace(c: char) -> bool {
-    matches!(
-        c,
-        // Usual ASCII suspects
-        '\u{0009}'   // \t
-        | '\u{000A}' // \n
-        | '\u{000B}' // vertical tab
-        | '\u{000C}' // form feed
-        | '\u{000D}' // \r
-        | '\u{0020}' // space
-
-        // NEXT LINE from latin1
-        | '\u{0085}'
-
-        // Bidi markers
-        | '\u{200E}' // LEFT-TO-RIGHT MARK
-        | '\u{200F}' // RIGHT-TO-LEFT MARK
-
-        // Dedicated whitespace characters from Unicode
-        | '\u{2028}' // LINE SEPARATOR
-        | '\u{2029}' // PARAGRAPH SEPARATOR
-    )
-}
-
-#[must_use]
-pub fn is_id_start(c: char) -> bool {
-    c == '_' || unicode_ident::is_xid_start(c)
-}
-
-#[must_use]
-pub fn is_id_continue(c: char) -> bool {
-    unicode_ident::is_xid_continue(c)
+    Cursor::new(input).into_iter()
 }
 
 #[must_use]
@@ -155,19 +116,11 @@ impl Cursor<'_> {
             '^' => Caret,
             '%' => Percent,
 
-            // Lifetime or character literal.
+            // Character literal.
             '\'' => self.char(),
 
             // String literal.
-            '"' => {
-                let terminated = self.double_quoted_string();
-                let suffix_start = self.pos_within_token();
-                if terminated {
-                    self.eat_literal_suffix();
-                }
-                let kind = Str { terminated };
-                Literal { kind, suffix_start }
-            }
+            '"' => self.string(),
             // Identifier starting with an emoji. Only lexed for graceful error recovery.
             c if !c.is_ascii() && c.is_emoji_char() => self.fake_ident_or_unknown_prefix(),
             _ => Unknown,
@@ -259,12 +212,23 @@ impl Cursor<'_> {
                 || (!c.is_ascii() && c.is_emoji_char())
                 || c == '\u{200d}'
         });
+
         // Known prefixes must have been handled earlier. So if
         // we see a prefix here, it is definitely an unknown prefix.
         match self.first() {
             '#' | '"' | '\'' => InvalidPrefix,
             _ => InvalidIdent,
         }
+    }
+
+    pub fn string(&mut self) -> TokenKind {
+        let terminated = self.double_quoted_string();
+        let suffix_start = self.pos_within_token();
+        if terminated {
+            self.eat_literal_suffix();
+        }
+        let kind = Str { terminated };
+        Literal { kind, suffix_start }
     }
 
     fn byte_string(&mut self) -> TokenKind {
@@ -603,5 +567,18 @@ impl Cursor<'_> {
         self.bump();
 
         self.eat_while(is_id_continue);
+    }
+}
+
+impl Iterator for Cursor<'_> {
+    type Item = Token;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let token = self.advance_token();
+        if token.kind != TokenKind::Eof {
+            Some(token)
+        } else {
+            None
+        }
     }
 }

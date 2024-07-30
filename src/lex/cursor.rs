@@ -30,16 +30,9 @@ impl<'a> Cursor<'a> {
 
     /// Returns the last eaten symbol (or `'\0'` in release builds).
     /// (For debug assertions only.)
+    #[cfg(debug_assertions)]
     pub fn prev(&self) -> char {
-        #[cfg(debug_assertions)]
-        {
-            self.prev
-        }
-
-        #[cfg(not(debug_assertions))]
-        {
-            EOF_CHAR
-        }
+        self.prev
     }
 
     /// Peeks the next symbol from the input stream without consuming it.

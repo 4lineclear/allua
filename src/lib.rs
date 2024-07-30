@@ -20,8 +20,10 @@
 // #![allow(clippy::cast_possible_truncation)]
 // #![allow(clippy::new_without_default)]
 #![allow(missing_docs)]
+#![allow(rustdoc::invalid_html_tags)]
 // #![allow(dead_code)]
 
 pub mod error;
 pub mod lex;
 pub mod parse;
+pub mod unicode;

@@ -4,8 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+string_cache = "0.8"
 unicode-ident = "1.0"
 unicode-properties = "0.1.1"
 
 [dev-dependencies]
 expect-test = "1.5.0"
+
+# [build-dependencies]
+# string_cache_codegen = "0.5"

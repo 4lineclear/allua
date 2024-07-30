@@ -1,4 +1,4 @@
-//! pulled from rustc_lexer
+//! primitive lexing
 
 /// Parsed token.
 /// It doesn't contain information about data that has been parsed,

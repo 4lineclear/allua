@@ -1,4 +1,176 @@
+use token::Token;
+
+use crate::lex::cursor::Cursor;
+
 pub mod token;
+
+/// Reads tokens into a tokenstream
+#[derive(Debug)]
+pub struct Reader<'a> {
+    cursor: Cursor<'a>,
+}
+
+impl<'a> Reader<'a> {
+    /// The top level parsing function; parses the next token from within a fn
+    ///
+    /// # Precondition
+    ///
+    /// Expected for the previous token to be a Fn
+    pub fn fn_next(&mut self) -> Option<Token> {
+        use super::lex::token::TokenKind::*;
+        let token = self.cursor.next()?;
+        let span = token.len;
+        let kind = token.kind;
+
+        match kind {
+            LineComment { doc_style } => {
+                ();
+                todo!()
+            }
+            BlockComment {
+                doc_style,
+                terminated,
+            } => {
+                ();
+                todo!()
+            }
+            Whitespace => {
+                ();
+                todo!()
+            }
+            Ident => {
+                ();
+                todo!()
+            }
+            InvalidIdent => {
+                ();
+                todo!()
+            }
+            InvalidPrefix => {
+                ();
+                todo!()
+            }
+            Literal { kind, suffix_start } => {
+                ();
+                todo!()
+            }
+            Semi => {
+                ();
+                todo!()
+            }
+            Comma => {
+                ();
+                todo!()
+            }
+            Dot => {
+                ();
+                todo!()
+            }
+            OpenParen => {
+                ();
+                todo!()
+            }
+            CloseParen => {
+                ();
+                todo!()
+            }
+            OpenBrace => {
+                ();
+                todo!()
+            }
+            CloseBrace => {
+                ();
+                todo!()
+            }
+            OpenBracket => {
+                ();
+                todo!()
+            }
+            CloseBracket => {
+                ();
+                todo!()
+            }
+            At => {
+                ();
+                todo!()
+            }
+            Pound => {
+                ();
+                todo!()
+            }
+            Tilde => {
+                ();
+                todo!()
+            }
+            Question => {
+                ();
+                todo!()
+            }
+            Colon => {
+                ();
+                todo!()
+            }
+            Dollar => {
+                ();
+                todo!()
+            }
+            Eq => {
+                ();
+                todo!()
+            }
+            Bang => {
+                ();
+                todo!()
+            }
+            Lt => {
+                ();
+                todo!()
+            }
+            Gt => {
+                ();
+                todo!()
+            }
+            Minus => {
+                ();
+                todo!()
+            }
+            And => {
+                ();
+                todo!()
+            }
+            Or => {
+                ();
+                todo!()
+            }
+            Plus => {
+                ();
+                todo!()
+            }
+            Star => {
+                ();
+                todo!()
+            }
+            Slash => {
+                ();
+                todo!()
+            }
+            Caret => {
+                ();
+                todo!()
+            }
+            Percent => {
+                ();
+                todo!()
+            }
+            Unknown => {
+                ();
+                todo!()
+            }
+            Eof => None,
+        }
+    }
+}
+
 //
 // pub fn ws_start<'a, O, E: ParseError<&'a str>, F>(
 //     inner: F,

@@ -1,15 +1,20 @@
 use std::str::Chars;
 
+use super::{token::TokenKind, Token};
+
 /// Peekable iterator over a char sequence.
 ///
 /// Next characters can be peeked via `first` method,
 /// and position can be shifted forward via `bump` method.
+#[derive(Debug)]
 pub struct Cursor<'a> {
     len_remaining: usize,
     /// Iterator over chars. Slightly faster than a &str.
     chars: Chars<'a>,
     #[cfg(debug_assertions)]
     prev: char,
+    #[cfg(debug_assertions)]
+    prev_token: Token,
 }
 
 pub const EOF_CHAR: char = '\0';
@@ -21,6 +26,8 @@ impl<'a> Cursor<'a> {
             chars: input.chars(),
             #[cfg(debug_assertions)]
             prev: EOF_CHAR,
+            #[cfg(debug_assertions)]
+            prev_token: Token::new(TokenKind::Eof, 0),
         }
     }
 
@@ -28,13 +35,19 @@ impl<'a> Cursor<'a> {
         self.chars.as_str()
     }
 
-    /// Returns the last eaten symbol (or `'\0'` in release builds).
+    /// Returns the last eaten symbol
     /// (For debug assertions only.)
     #[cfg(debug_assertions)]
     pub fn prev(&self) -> char {
         self.prev
     }
 
+    /// Returns the last eaten token
+    /// (For debug assertions only.)
+    #[cfg(debug_assertions)]
+    pub fn prev_token(&self) -> Token {
+        self.prev_token
+    }
     /// Peeks the next symbol from the input stream without consuming it.
     /// If requested position doesn't exist, `EOF_CHAR` is returned.
     /// However, getting `EOF_CHAR` doesn't always mean actual end of file,

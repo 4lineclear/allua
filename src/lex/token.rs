@@ -3,7 +3,7 @@
 /// Parsed token.
 /// It doesn't contain information about data that has been parsed,
 /// only the type of the token and its size.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Token {
     pub kind: TokenKind,
     pub len: u32,
@@ -16,7 +16,7 @@ impl Token {
 }
 
 /// Enum representing common lexeme types.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TokenKind {
     // Multi-char tokens:
     /// "// comment"
@@ -119,7 +119,7 @@ pub enum TokenKind {
     Eof,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DocStyle {
     Outer,
     Inner,
@@ -145,12 +145,16 @@ pub enum LiteralKind {
     Str { terminated: bool },
     /// "b"abc"", "b"abc"
     ByteStr { terminated: bool },
+    /// `c"abc"`, `c"abc`
+    CStr { terminated: bool },
     /// "r"abc"", "r#"abc"#", "r####"ab"###"c"####", "r#"a". `None` indicates
     /// an invalid literal.
     RawStr { n_hashes: Option<u8> },
     /// "br"abc"", "br#"abc"#", "br####"ab"###"c"####", "br#"a". `None`
     /// indicates an invalid literal.
     RawByteStr { n_hashes: Option<u8> },
+    /// `cr"abc"`, "cr#"abc"#", `cr#"a`. `None` indicates an invalid literal.
+    RawCStr { n_hashes: Option<u8> },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]

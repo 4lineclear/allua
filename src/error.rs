@@ -4,7 +4,7 @@ use std::fmt::Display;
 // NOTE: types of errors:
 // - lexical    : encoding, definition, ident rules, token structure.
 // - syntacitcal: contextual, set path, not one of.
-// - semantic   : type errors, arg errors.
+// - semantic   : type errors, arg errors, nonexistent imports.
 
 /// A set of parsing errors
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -38,7 +38,10 @@ impl From<LexicalError> for ErrorOnce {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LexicalError {
-    Invalid(u32, u32),
+    /// Some type of unclosed block
+    Unclosed(u32),
+    UnclosedBlockComment(u32),
+    Invalid(u32),
     UnexpectedPunct(char),
 }
 

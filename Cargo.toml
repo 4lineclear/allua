@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-string_cache = "0.8"
+ustr = "1.0"
 unicode-ident = "1.0"
 unicode-normalization = "0.1"
 unicode-properties = "0.1.1"

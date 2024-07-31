@@ -1,7 +1,5 @@
-use token::Token;
-
 use crate::{
-    error::{ErrorMulti, LexicalError},
+    error::{ErrorMulti, ErrorOnce, LexicalError},
     lex,
 };
 
@@ -15,7 +13,8 @@ pub struct Reader<'a> {
     cursor: lex::Cursor<'a>,
     errors: ErrorMulti,
     src: &'a str,
-    pos: usize,
+    pos: u32,
+    // buf: Vec<token::Token>,
 }
 
 impl<'a> Reader<'a> {
@@ -25,12 +24,30 @@ impl<'a> Reader<'a> {
             errors: ErrorMulti::default(),
             src,
             pos: 0,
+            // buf: Vec::new(),
         }
     }
+
+    /// Parse a module
+    pub fn module(&mut self, name: &str) -> token::Module {
+        let mut md = token::Module::new(name);
+
+        loop {
+            match self.fn_next() {
+                Some(token) => md.push(token),
+                None => break,
+            };
+        }
+
+        md
+    }
+
     /// The top level parsing function; parses the next token from within a fn
     ///
     /// Parses both functions and modules, catching lexical errors
-    pub fn fn_next(&mut self) -> Option<Token> {
+    #[allow(dead_code)]
+    #[allow(unused)]
+    pub fn fn_next(&mut self) -> Option<token::Token> {
         use lex::token::TokenKind::*;
 
         loop {
@@ -38,36 +55,53 @@ impl<'a> Reader<'a> {
             let len = token.len;
             let kind = token.kind;
             match kind {
-                LineComment { doc_style } => {}
+                // (?doc)comments. skip normal comments
+                LineComment { doc_style } => {
+                    let Some(style) = doc_style else {
+                        continue;
+                    };
+                    todo!("doc comments not added yet");
+                }
                 BlockComment {
                     doc_style,
                     terminated,
-                } => {}
+                } => {
+                    if !terminated {
+                        self.errors
+                            .push(LexicalError::UnclosedBlockComment(self.pos));
+                    }
+                    let Some(style) = doc_style else {
+                        continue;
+                    };
+                    todo!("doc comments not added yet");
+                }
                 // empty
                 Semi | Whitespace => continue,
                 Ident => {}
                 Literal { kind, suffix_start } => {}
-                OpenParen => {}
-                CloseParen => {}
+                // code block
                 OpenBrace => {}
-                CloseBrace => {}
-                // NOTE: maybe add to unexpected tokens
-                OpenBracket => {}
-                CloseBracket => {}
-                Comma | Dot | At | Pound | Tilde | Question | Colon | Dollar | Eq | Bang | Lt
-                | Gt | Minus | And | Or | Plus | Star | Slash | Caret | Percent => self
+                // fn end
+                CloseBrace => {
+                    todo!()
+                }
+                // out of place symbol, add error and continue
+                OpenParen | CloseParen | OpenBracket | CloseBracket | Comma | Dot | At | Pound
+                | Tilde | Question | Colon | Dollar | Eq | Bang | Lt | Gt | Minus | And | Or
+                | Plus | Star | Slash | Caret | Percent => self
                     .errors
                     .push(LexicalError::UnexpectedPunct(self.current_char())),
-                Unknown | InvalidIdent | InvalidPrefix => self
-                    .errors
-                    .push(LexicalError::Invalid(len, self.cursor.pos_within_token())),
+                // encoding err, add error and continue
+                Unknown | InvalidIdent | InvalidPrefix => {
+                    self.errors.push(LexicalError::Invalid(self.pos))
+                }
                 Eof => return None,
             }
-            self.pos += len as usize;
+            self.pos += len;
         }
     }
     fn current_char(&self) -> char {
-        self.src[self.pos..]
+        self.src[self.pos as usize..]
             .chars()
             .next()
             .expect("couldn't get current char")

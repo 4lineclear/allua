@@ -20,6 +20,7 @@ A simple description of lua's design
 - something like `comptime` instead of `impl-like`, call it `comp`
   - all `predef` values can be  `comp`.
   - only `predef` values can be used in `comp`
+- tagged blocks
 
 ## Data Structures
 

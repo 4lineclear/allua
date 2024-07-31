@@ -3,11 +3,30 @@
 
 use std::marker::PhantomData;
 
+use crate::util::Symbol;
+
 /// a module of code
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Module<'a> {
+pub struct Module {
     /// First item must be a fn
-    items: Vec<Token<'a>>,
+    items: Vec<Token>,
+}
+
+impl Module {
+    pub fn new(name: &str) -> Self {
+        let function = Fn {
+            name: name.into(),
+            params: Span::default(),
+            tokens: Span::default(),
+        };
+        Self {
+            items: vec![function.into()],
+        }
+    }
+
+    pub fn push(&mut self, token: impl Into<Token>) {
+        self.items.push(token.into());
+    }
 }
 
 /// A user defined function
@@ -21,25 +40,25 @@ pub struct Module<'a> {
 /// end
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Fn<'a> {
-    name: &'a str,
-    params: Span<Decl<'a>>,
-    tokens: Span<Token<'a>>,
+pub struct Fn {
+    name: Symbol,
+    params: Span<Decl>,
+    tokens: Span<Token>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Token<'a> {
-    Fn(Fn<'a>),
-    Decl(Decl<'a>),
-    Expr(Expr<'a>),
-    Value(Value<'a>),
-    Import(Import<'a>),
+pub enum Token {
+    Fn(Fn),
+    Decl(Decl),
+    Expr(Expr),
+    Value(Value),
+    Import(Import),
 }
 
 macro_rules! token_from {
     ($($name:ident),*) => {$(
-        impl<'a> From<$name<'a>> for Token<'a> {
-            fn from(value: $name<'a>) -> Self {
+        impl<'a> From<$name> for Token {
+            fn from(value: $name) -> Self {
                 Self::$name(value)
             }
         }
@@ -50,61 +69,68 @@ token_from!(Fn, Decl, Expr, Value, Import);
 
 /// [`DeclType`] <name> ?(= <value>);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Decl<'a> {
+pub struct Decl {
     /// if none try implicit
-    ty: DeclType<'a>,
-    name: &'a str,
-    value: Option<Value<'a>>,
+    ty: DeclType,
+    name: Symbol,
+    value: Option<Value>,
 }
 
 // TODO: add let style const decl
 
 /// <type> | `let` | `const` | `const` <type>
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum DeclType<'a> {
+pub enum DeclType {
     /// let <name>
     Let,
     /// <type> <name>
-    Type(&'a str),
+    Type(Symbol),
     /// const <type> <name>
-    ConstType(&'a str),
+    ConstType(Symbol),
 }
 
 /// ?(<defer>) `use` <name>;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Import<'a> {
-    name: &'a str,
+pub struct Import {
+    name: Symbol,
     defer: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Value<'a> {
+pub enum Value {
     // "..."
-    String(&'a str),
+    String(Symbol),
 }
 
 /// <expr>
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Expr<'a> {
+pub enum Expr {
     /// <name>(<params>...)
-    FnCall {
-        name: &'a str,
-        params: Span<Value<'a>>,
-    },
+    FnCall { name: Symbol, params: Span<Value> },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Span<T> {
-    start: usize,
-    end: usize,
+    start: u32,
+    end: u32,
     kind: PhantomData<T>,
+}
+
+impl<T> Default for Span<T> {
+    fn default() -> Self {
+        Self {
+            start: 0,
+            end: 0,
+            kind: PhantomData,
+        }
+    }
 }
 
 impl<'a, T> Span<T> {
     #[must_use]
-    pub fn push(self, token: T, set: &mut Vec<Token<'a>>) -> Self
+    pub fn push(self, token: T, set: &mut Vec<Token>) -> Self
     where
-        T: Into<Token<'a>>,
+        T: Into<Token>,
     {
         set.push(token.into());
         Self {

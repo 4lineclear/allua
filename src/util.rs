@@ -1,5 +1,6 @@
-use string_cache::DefaultAtom;
 use unicode_normalization::{is_nfc_quick, IsNormalized, UnicodeNormalization};
+
+pub type Symbol = ustr::Ustr;
 
 #[must_use]
 pub const fn is_whitespace(c: char) -> bool {
@@ -36,9 +37,9 @@ pub fn is_id_continue(c: char) -> bool {
     unicode_ident::is_xid_continue(c)
 }
 
-pub fn nfc_normalize(string: &str) -> DefaultAtom {
+pub fn nfc_normalize(string: &str) -> Symbol {
     match is_nfc_quick(string.chars()) {
-        IsNormalized::Yes => DefaultAtom::from(string),
-        _ => DefaultAtom::from(string.chars().nfc().collect::<String>()),
+        IsNormalized::Yes => Symbol::from(string),
+        _ => Symbol::from(&string.chars().nfc().collect::<String>()),
     }
 }

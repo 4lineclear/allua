@@ -4,21 +4,53 @@ use super::Reader;
 
 #[test]
 fn unexpected_punct() {
-    let src = ",.@#~?:$=!<>-&|+*/^%";
+    let src = "()[],.@#~?:$=!<>-&|+*/^%";
     let mut reader = Reader::new(src);
     let token = reader.fn_next();
     assert_eq!(token, None);
 
-    let expected_errors = expect![["ErrorMulti { errors: [Lecical(UnexpectedPunct(',')), \
-        Lecical(UnexpectedPunct('.')), Lecical(UnexpectedPunct('@')), \
-        Lecical(UnexpectedPunct('#')), Lecical(UnexpectedPunct('~')), \
-        Lecical(UnexpectedPunct('?')), Lecical(UnexpectedPunct(':')), \
-        Lecical(UnexpectedPunct('$')), Lecical(UnexpectedPunct('=')), \
-        Lecical(UnexpectedPunct('!')), Lecical(UnexpectedPunct('<')), \
-        Lecical(UnexpectedPunct('>')), Lecical(UnexpectedPunct('-')), \
-        Lecical(UnexpectedPunct('&')), Lecical(UnexpectedPunct('|')), \
-        Lecical(UnexpectedPunct('+')), Lecical(UnexpectedPunct('*')), \
-        Lecical(UnexpectedPunct('/')), Lecical(UnexpectedPunct('^')), \
-        Lecical(UnexpectedPunct('%'))] }"]];
+    let expected_errors = expect![
+        "ErrorMulti { errors: [\
+        Lecical(UnexpectedPunct('(')), \
+        Lecical(UnexpectedPunct(')')), \
+        Lecical(UnexpectedPunct('[')), \
+        Lecical(UnexpectedPunct(']')), \
+        Lecical(UnexpectedPunct(',')), \
+        Lecical(UnexpectedPunct('.')), \
+        Lecical(UnexpectedPunct('@')), \
+        Lecical(UnexpectedPunct('#')), \
+        Lecical(UnexpectedPunct('~')), \
+        Lecical(UnexpectedPunct('?')), \
+        Lecical(UnexpectedPunct(':')), \
+        Lecical(UnexpectedPunct('$')), \
+        Lecical(UnexpectedPunct('=')), \
+        Lecical(UnexpectedPunct('!')), \
+        Lecical(UnexpectedPunct('<')), \
+        Lecical(UnexpectedPunct('>')), \
+        Lecical(UnexpectedPunct('-')), \
+        Lecical(UnexpectedPunct('&')), \
+        Lecical(UnexpectedPunct('|')), \
+        Lecical(UnexpectedPunct('+')), \
+        Lecical(UnexpectedPunct('*')), \
+        Lecical(UnexpectedPunct('/')), \
+        Lecical(UnexpectedPunct('^')), \
+        Lecical(UnexpectedPunct('%'))] }"
+    ];
+
+    expected_errors.assert_eq(&format!("{:?}", reader.errors));
+}
+
+#[test]
+fn unclosed_block_comment() {
+    let src = "/*/*/**/*/";
+    let mut reader = Reader::new(src);
+    let token = reader.fn_next();
+    assert_eq!(token, None);
+
+    let expected_errors = expect![
+        "ErrorMulti { errors: [\
+        Lecical(UnclosedBlockComment(0))] }"
+    ];
+
     expected_errors.assert_eq(&format!("{:?}", reader.errors));
 }

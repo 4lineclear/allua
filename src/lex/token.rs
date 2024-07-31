@@ -42,8 +42,7 @@ pub enum TokenKind {
     /// Like the above, but containing invalid unicode codepoints.
     InvalidIdent,
 
-    /// Similar to the above, but *always* an error on every edition. This is used
-    /// for emoji identifier recovery, as those are not meant to be ever accepted.
+    /// invalid string prefix, for emojis
     InvalidPrefix,
 
     /// Examples: `12u8`, `1.0e-40`, `b"123"`. Note that `_` is an invalid

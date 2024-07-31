@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 string_cache = "0.8"
 unicode-ident = "1.0"
+unicode-normalization = "0.1"
 unicode-properties = "0.1.1"
 
 [dev-dependencies]

@@ -1,3 +1,6 @@
+use string_cache::DefaultAtom;
+use unicode_normalization::{is_nfc_quick, IsNormalized, UnicodeNormalization};
+
 #[must_use]
 pub const fn is_whitespace(c: char) -> bool {
     matches!(
@@ -31,4 +34,11 @@ pub fn is_id_start(c: char) -> bool {
 #[must_use]
 pub fn is_id_continue(c: char) -> bool {
     unicode_ident::is_xid_continue(c)
+}
+
+pub fn nfc_normalize(string: &str) -> DefaultAtom {
+    match is_nfc_quick(string.chars()) {
+        IsNormalized::Yes => DefaultAtom::from(string),
+        _ => DefaultAtom::from(string.chars().nfc().collect::<String>()),
+    }
 }

@@ -5,16 +5,9 @@
 // NOTE: pre-lexing done here
 // must create own post-lexing
 
-use cursor::{Cursor, EOF_CHAR};
-use token::{
-    Base, DocStyle,
-    LiteralKind::{self, *},
-    RawStrError, Token,
-    TokenKind::{self, *},
-};
 use unicode_properties::UnicodeEmoji;
 
-use util::{is_id_continue, is_id_start, is_whitespace};
+use super::util::{is_id_continue, is_id_start, is_whitespace};
 
 #[cfg(test)]
 pub mod test;
@@ -22,7 +15,14 @@ pub mod test;
 pub mod cursor;
 pub mod token;
 pub mod unescape;
-pub mod util;
+
+pub use cursor::{Cursor, EOF_CHAR};
+pub use token::{
+    Base, DocStyle,
+    LiteralKind::{self, *},
+    RawStrError, Token,
+    TokenKind::{self, *},
+};
 
 // TODO: read over, refine, and add clippy lints
 

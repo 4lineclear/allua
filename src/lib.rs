@@ -27,3 +27,4 @@ pub mod error;
 pub mod lex;
 pub mod parse;
 pub mod unicode;
+pub mod util;

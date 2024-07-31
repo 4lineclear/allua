@@ -1,173 +1,76 @@
 use token::Token;
 
-use crate::lex::cursor::Cursor;
+use crate::{
+    error::{ErrorMulti, LexicalError},
+    lex,
+};
 
+#[cfg(test)]
+pub mod test;
 pub mod token;
 
 /// Reads tokens into a tokenstream
 #[derive(Debug)]
 pub struct Reader<'a> {
-    cursor: Cursor<'a>,
+    cursor: lex::Cursor<'a>,
+    errors: ErrorMulti,
+    src: &'a str,
+    pos: usize,
 }
 
 impl<'a> Reader<'a> {
+    pub fn new(src: &'a str) -> Self {
+        Self {
+            cursor: lex::Cursor::new(src),
+            errors: ErrorMulti::default(),
+            src,
+            pos: 0,
+        }
+    }
     /// The top level parsing function; parses the next token from within a fn
     ///
-    /// # Precondition
-    ///
-    /// Expected for the previous token to be a Fn
+    /// Parses both functions and modules, catching lexical errors
     pub fn fn_next(&mut self) -> Option<Token> {
-        use super::lex::token::TokenKind::*;
-        let token = self.cursor.next()?;
-        let span = token.len;
-        let kind = token.kind;
+        use lex::token::TokenKind::*;
 
-        match kind {
-            LineComment { doc_style } => {
-                ();
-                todo!()
+        loop {
+            let token = self.cursor.advance_token();
+            let len = token.len;
+            let kind = token.kind;
+            match kind {
+                LineComment { doc_style } => {}
+                BlockComment {
+                    doc_style,
+                    terminated,
+                } => {}
+                // empty
+                Semi | Whitespace => continue,
+                Ident => {}
+                Literal { kind, suffix_start } => {}
+                OpenParen => {}
+                CloseParen => {}
+                OpenBrace => {}
+                CloseBrace => {}
+                // NOTE: maybe add to unexpected tokens
+                OpenBracket => {}
+                CloseBracket => {}
+                Comma | Dot | At | Pound | Tilde | Question | Colon | Dollar | Eq | Bang | Lt
+                | Gt | Minus | And | Or | Plus | Star | Slash | Caret | Percent => self
+                    .errors
+                    .push(LexicalError::UnexpectedPunct(self.current_char())),
+                Unknown | InvalidIdent | InvalidPrefix => self
+                    .errors
+                    .push(LexicalError::Invalid(len, self.cursor.pos_within_token())),
+                Eof => return None,
             }
-            BlockComment {
-                doc_style,
-                terminated,
-            } => {
-                ();
-                todo!()
-            }
-            Whitespace => {
-                ();
-                todo!()
-            }
-            Ident => {
-                ();
-                todo!()
-            }
-            InvalidIdent => {
-                ();
-                todo!()
-            }
-            InvalidPrefix => {
-                ();
-                todo!()
-            }
-            Literal { kind, suffix_start } => {
-                ();
-                todo!()
-            }
-            Semi => {
-                ();
-                todo!()
-            }
-            Comma => {
-                ();
-                todo!()
-            }
-            Dot => {
-                ();
-                todo!()
-            }
-            OpenParen => {
-                ();
-                todo!()
-            }
-            CloseParen => {
-                ();
-                todo!()
-            }
-            OpenBrace => {
-                ();
-                todo!()
-            }
-            CloseBrace => {
-                ();
-                todo!()
-            }
-            OpenBracket => {
-                ();
-                todo!()
-            }
-            CloseBracket => {
-                ();
-                todo!()
-            }
-            At => {
-                ();
-                todo!()
-            }
-            Pound => {
-                ();
-                todo!()
-            }
-            Tilde => {
-                ();
-                todo!()
-            }
-            Question => {
-                ();
-                todo!()
-            }
-            Colon => {
-                ();
-                todo!()
-            }
-            Dollar => {
-                ();
-                todo!()
-            }
-            Eq => {
-                ();
-                todo!()
-            }
-            Bang => {
-                ();
-                todo!()
-            }
-            Lt => {
-                ();
-                todo!()
-            }
-            Gt => {
-                ();
-                todo!()
-            }
-            Minus => {
-                ();
-                todo!()
-            }
-            And => {
-                ();
-                todo!()
-            }
-            Or => {
-                ();
-                todo!()
-            }
-            Plus => {
-                ();
-                todo!()
-            }
-            Star => {
-                ();
-                todo!()
-            }
-            Slash => {
-                ();
-                todo!()
-            }
-            Caret => {
-                ();
-                todo!()
-            }
-            Percent => {
-                ();
-                todo!()
-            }
-            Unknown => {
-                ();
-                todo!()
-            }
-            Eof => None,
+            self.pos += len as usize;
         }
+    }
+    fn current_char(&self) -> char {
+        self.src[self.pos..]
+            .chars()
+            .next()
+            .expect("couldn't get current char")
     }
 }
 

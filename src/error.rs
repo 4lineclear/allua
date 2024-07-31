@@ -1,16 +1,45 @@
 use std::error::Error as StdError;
 use std::fmt::Display;
 
+// NOTE: types of errors:
+// - lexical    : encoding, definition, ident rules, token structure.
+// - syntacitcal: contextual, set path, not one of.
+// - semantic   : type errors, arg errors.
+
 /// A set of parsing errors
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ErrorMulti {
     errors: Vec<ErrorOnce>,
+}
+
+impl From<Vec<ErrorOnce>> for ErrorMulti {
+    fn from(value: Vec<ErrorOnce>) -> Self {
+        Self { errors: value }
+    }
+}
+
+impl ErrorMulti {
+    pub fn push(&mut self, err: impl Into<ErrorOnce>) {
+        self.errors.push(err.into())
+    }
 }
 
 /// a single parsing error
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ErrorOnce {
-    //
+    Lecical(LexicalError),
+}
+
+impl From<LexicalError> for ErrorOnce {
+    fn from(value: LexicalError) -> Self {
+        Self::Lecical(value)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LexicalError {
+    Invalid(u32, u32),
+    UnexpectedPunct(char),
 }
 
 impl Display for ErrorOnce {

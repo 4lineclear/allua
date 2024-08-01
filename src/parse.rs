@@ -44,6 +44,7 @@ impl<'a> Reader<'a> {
     /// The top level parsing function; parses the next token from within a fn
     ///
     /// Parses both functions and modules, catching lexical errors
+    #[allow(unused)]
     pub fn next(&mut self, mode: FnParseMode) -> Option<token::Token> {
         use lex::token::TokenKind::*;
 

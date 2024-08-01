@@ -23,19 +23,35 @@ impl From<Vec<ErrorOnce>> for ErrorMulti {
 
 impl ErrorMulti {
     pub fn push(&mut self, err: impl Into<ErrorOnce>) {
-        self.errors.push(err.into());
+        use ErrorOnce::*;
+        use LexicalError::*;
+        let err = err.into();
+        match err.clone() {
+            Lexical(UnexpectedPunct(_, t)) => match self.errors.last_mut() {
+                Some(Lexical(UnexpectedPunct(_, f))) if t == *f + 1 => {
+                    let f = *f;
+                    self.errors.pop();
+                    self.errors.push(UnexpectedRange(f, t).into());
+                }
+                Some(Lexical(UnexpectedRange(_, t1))) if t == *t1 + 1 => {
+                    *t1 += 1;
+                }
+                _ => self.errors.push(err),
+            },
+            _ => self.errors.push(err),
+        }
     }
 }
 
 /// a single parsing error
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ErrorOnce {
-    Lecical(LexicalError),
+    Lexical(LexicalError),
 }
 
 impl From<LexicalError> for ErrorOnce {
     fn from(value: LexicalError) -> Self {
-        Self::Lecical(value)
+        Self::Lexical(value)
     }
 }
 
@@ -51,6 +67,8 @@ pub enum LexicalError {
     UnexpectedEof(u32),
     UnexpectedIdent(Symbol, u32),
     UnexpectedPunct(char, u32),
+    /// should (?maybe) be constructed directly
+    UnexpectedRange(u32, u32),
     UnexpectedLit(lex::LiteralKind, u32),
 }
 

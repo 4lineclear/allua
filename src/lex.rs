@@ -455,7 +455,7 @@ impl Cursor<'_> {
         // This way, it eats the whole raw string.
         let n_hashes = self.raw_string_unvalidated(prefix_len)?;
         // Only up to 255 `#`s are allowed in raw strings
-        u8::try_from(n_hashes).map_or(Err(RawStrError::TooManyDelimiters { found: n_hashes }), Ok)
+        u8::try_from(n_hashes).map_err(|_| RawStrError::TooManyDelimiters { found: n_hashes })
     }
 
     fn raw_string_unvalidated(&mut self, prefix_len: u32) -> Result<u32, RawStrError> {
@@ -586,6 +586,6 @@ impl Iterator for Cursor<'_> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let token = self.advance_token();
-        (token.kind == TokenKind::Eof).then_some(token)
+        (token.kind != TokenKind::Eof).then_some(token)
     }
 }

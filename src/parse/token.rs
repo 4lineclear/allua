@@ -92,7 +92,7 @@ pub enum DeclKind {
     /// <type> <name>
     Type(Symbol),
     /// const <name>
-    Const(Symbol),
+    Const,
     /// const <type> <name>
     ConstType(Symbol),
 }

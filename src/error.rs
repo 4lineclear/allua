@@ -48,6 +48,7 @@ pub enum LexicalError {
     UnclosedBlockComment(u32),
     InvalidChar(u32),
     NameNotFound(u32),
+    UnexpectedEof(u32),
     UnexpectedIdent(Symbol, u32),
     UnexpectedPunct(char, u32),
     UnexpectedLit(lex::LiteralKind, u32),

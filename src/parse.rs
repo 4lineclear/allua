@@ -118,9 +118,7 @@ impl<'a> Reader<'a> {
 
         match id {
             "let" => self.parse_decl(token::DeclKind::Let).map(Into::into),
-            "const" => self
-                .parse_decl(token::DeclKind::ConstType(Symbol::from("")))
-                .map(Into::into),
+            "const" => self.parse_decl(token::DeclKind::Const).map(Into::into),
             s => todo!("unexpected ident \"{s}\""),
         }
     }
@@ -129,7 +127,7 @@ impl<'a> Reader<'a> {
         match kind {
             token::DeclKind::Let => self.parse_let(),
             token::DeclKind::Type(_) => todo!("not implemented yet"),
-            token::DeclKind::Const(_) => todo!("not implemented yet"),
+            token::DeclKind::Const => todo!("not implemented yet"),
             token::DeclKind::ConstType(_) => todo!("not implemented yet"),
         }
         .map(|(name, value)| (token::Decl::new(kind, name, value)))
@@ -164,7 +162,9 @@ impl<'a> Reader<'a> {
                 Unknown | InvalidIdent | InvalidPrefix => self
                     .errors
                     .push(LexicalError::InvalidChar(self.cursor.pos())),
-                Eof => todo!("eof here not handled yet"),
+                Eof => self
+                    .errors
+                    .push(LexicalError::UnexpectedEof(self.cursor.pos())),
                 _ => {
                     self.filter_punct(next);
                 }

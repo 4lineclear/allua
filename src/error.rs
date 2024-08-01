@@ -2,6 +2,7 @@ use std::error::Error as StdError;
 use std::fmt::Display;
 
 use crate::lex;
+use crate::util::Symbol;
 
 // NOTE: types of errors:
 // - lexical    : encoding, definition, ident rules, token structure.
@@ -47,6 +48,7 @@ pub enum LexicalError {
     UnclosedBlockComment(u32),
     InvalidChar(u32),
     NameNotFound(u32),
+    UnexpectedIdent(Symbol, u32),
     UnexpectedPunct(char, u32),
     UnexpectedLit(lex::LiteralKind, u32),
 }

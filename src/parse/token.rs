@@ -3,7 +3,7 @@
 
 use std::marker::PhantomData;
 
-use crate::util::Symbol;
+use crate::{lex, util::Symbol};
 
 /// a module of code
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -71,20 +71,26 @@ token_from!(Fn, Decl, Expr, Value, Import);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Decl {
     /// if none try implicit
-    ty: DeclType,
+    kind: DeclKind,
     name: Symbol,
-    value: Option<Value>,
+    value: Option<Expr>,
 }
 
-// TODO: add let style const decl
+impl Decl {
+    pub fn new(kind: DeclKind, name: Symbol, value: Option<Expr>) -> Self {
+        Self { kind, name, value }
+    }
+}
 
 /// <type> | `let` | `const` | `const` <type>
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum DeclType {
+pub enum DeclKind {
     /// let <name>
     Let,
     /// <type> <name>
     Type(Symbol),
+    /// const <name>
+    Const(Symbol),
     /// const <type> <name>
     ConstType(Symbol),
 }
@@ -97,16 +103,34 @@ pub struct Import {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Value {
-    // "..."
-    String(Symbol),
+pub struct Value {
+    value: Symbol,
+    kind: lex::LiteralKind,
+    suffix_start: u32,
+}
+
+impl Value {
+    pub fn new(value: Symbol, kind: lex::LiteralKind, suffix_start: u32) -> Self {
+        Self {
+            value,
+            kind,
+            suffix_start,
+        }
+    }
 }
 
 /// <expr>
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Expr {
     /// <name>(<params>...)
-    FnCall { name: Symbol, params: Span<Value> },
+    FnCall(Symbol, Span<Expr>),
+    Value(Value),
+}
+
+impl From<Value> for Expr {
+    fn from(value: Value) -> Self {
+        Self::Value(value)
+    }
 }
 
 /// A span of tokens

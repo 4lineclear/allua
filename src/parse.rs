@@ -80,7 +80,10 @@ impl<'a> Reader<'a> {
                 }
                 // empty
                 Semi | Whitespace => (),
-                Ident => self.parse_ident(len),
+                Ident => match self.parse_ident(len) {
+                    Some(token) => return Some(token),
+                    None => (),
+                },
                 Literal { kind, suffix_start } => {}
                 // code block
                 OpenBrace => {
@@ -91,7 +94,7 @@ impl<'a> Reader<'a> {
                 // out of place symbol, add error and continue
                 CloseBrace | OpenParen | CloseParen | OpenBracket | CloseBracket | Comma | Dot
                 | At | Pound | Tilde | Question | Colon | Dollar | Eq | Bang | Lt | Gt | Minus
-                | And | Or | Plus | Star | Slash | Caret | Percent => self.unexpected_punct(len),
+                | And | Or | Plus | Star | Slash | Caret | Percent => self.unexpected_punct(),
                 // encoding err, add error and continue
                 Unknown | InvalidIdent | InvalidPrefix => self
                     .errors
@@ -101,74 +104,140 @@ impl<'a> Reader<'a> {
         }
     }
 
-    fn current_char(&self, len: u32) -> char {
+    fn current_char(&self) -> char {
         let pos = self.cursor.token_pos() as usize;
-        self.src[pos..pos + len as usize]
+        self.src[pos..]
             .chars()
             .next()
             .expect("couldn't get current char")
     }
 
-    fn parse_ident(&mut self, len: u32) {
+    fn current_range(&self, len: u32) -> &str {
+        let pos = self.cursor.token_pos() as usize;
+        &self.src[pos..pos + len as usize]
+    }
+
+    fn parse_ident(&mut self, len: u32) -> Option<token::Token> {
         let from = self.cursor.token_pos() as usize;
         let to = from + len as usize;
         let id = &self.src[from..to];
 
         match id {
-            "let" => self.parse_decl(token::DeclType::Let),
-            "const" => self.parse_decl(token::DeclType::ConstType(Symbol::from(""))),
+            "let" => self.parse_decl(token::DeclKind::Let).map(Into::into),
+            "const" => self
+                .parse_decl(token::DeclKind::ConstType(Symbol::from("")))
+                .map(Into::into),
             s => todo!("unexpected ident \"{s}\""),
         }
     }
 
-    fn parse_decl(&mut self, kind: token::DeclType) {
+    fn parse_decl(&mut self, kind: token::DeclKind) -> Option<token::Decl> {
         match kind {
-            token::DeclType::Let => {
-                let name_found = self.parse_var_name();
-                if !name_found {
-                    self.errors
-                        .push(LexicalError::NameNotFound(self.cursor.pos()));
-                    return;
-                }
-            }
-            token::DeclType::Type(_) => todo!("not implemented yet"),
-            token::DeclType::ConstType(_) => todo!("not implemented yet"),
+            token::DeclKind::Let => self.parse_let(),
+            token::DeclKind::Type(_) => todo!("not implemented yet"),
+            token::DeclKind::Const(_) => todo!("not implemented yet"),
+            token::DeclKind::ConstType(_) => todo!("not implemented yet"),
         }
+        .map(|(name, value)| (token::Decl::new(kind, name, value)))
     }
-    fn parse_var_name(&mut self) -> bool {
-        use lex::token::TokenKind::*;
-        loop {
-            let token = self.cursor.advance_token();
-            let kind = token.kind;
-            let len = token.len;
 
-            match kind {
-                // TODO: handle wrongly placed doc comments
+    fn parse_let(&mut self) -> Option<(Symbol, Option<token::Expr>)> {
+        use lex::token::TokenKind::*;
+        let name = self.parse_until_ident();
+        let Some(name) = name else {
+            self.errors
+                .push(LexicalError::NameNotFound(self.cursor.pos()));
+            return None;
+        };
+
+        // should be '=' or ';'
+        loop {
+            let next = self.cursor.advance_token();
+            match next.kind {
                 LineComment { .. } | BlockComment { .. } | Whitespace => (),
-                Ident => return true,
-                OpenBrace => {
-                    todo!("code blocks not implemented yet!")
-                }
+                // uninit var
+                Semi => return Some((name, None)),
+                // init var
+                Eq => break,
                 // out of place symbols
+                Ident => self.errors.push(LexicalError::UnexpectedIdent(
+                    self.current_range(next.len).into(),
+                    self.cursor.pos(),
+                )),
                 Literal { kind, .. } => self
                     .errors
                     .push(LexicalError::UnexpectedLit(kind, self.cursor.pos())),
-                Semi | CloseBrace | OpenParen | CloseParen | OpenBracket | CloseBracket | Comma
-                | Dot | At | Pound | Tilde | Question | Colon | Dollar | Eq | Bang | Lt | Gt
+                OpenBrace | CloseBrace | OpenParen | CloseParen | OpenBracket | CloseBracket
+                | Comma | Dot | At | Pound | Tilde | Question | Colon | Dollar | Bang | Lt | Gt
                 | Minus | And | Or | Plus | Star | Slash | Caret | Percent => {
-                    self.unexpected_punct(len)
+                    self.unexpected_punct()
                 }
                 Unknown | InvalidIdent | InvalidPrefix => self
                     .errors
                     .push(LexicalError::InvalidChar(self.cursor.pos())),
-                Eof => return false,
-            };
+                Eof => (),
+            }
+        }
+        let expr = self.parse_expr();
+        if expr.is_none() {
+            return None;
+        }
+        Some((name, expr))
+    }
+
+    fn parse_until_ident(&mut self) -> Option<Symbol> {
+        use lex::token::TokenKind::*;
+        loop {
+            let token = self.cursor.advance_token();
+            match token.kind {
+                LineComment { .. } | BlockComment { .. } | Whitespace => (),
+                Ident => return Some(self.current_range(token.len).into()),
+                // out of place symbols
+                Literal { kind, .. } => self
+                    .errors
+                    .push(LexicalError::UnexpectedLit(kind, self.cursor.pos())),
+                Semi | OpenBrace | CloseBrace | OpenParen | CloseParen | OpenBracket
+                | CloseBracket | Comma | Dot | At | Pound | Tilde | Question | Colon | Dollar
+                | Eq | Bang | Lt | Gt | Minus | And | Or | Plus | Star | Slash | Caret
+                | Percent => self.unexpected_punct(),
+                Unknown | InvalidIdent | InvalidPrefix => self
+                    .errors
+                    .push(LexicalError::InvalidChar(self.cursor.pos())),
+                Eof => return None,
+            }
         }
     }
 
-    fn unexpected_punct(&mut self, len: u32) {
+    fn parse_expr(&mut self) -> Option<token::Expr> {
+        use lex::token::TokenKind::*;
+        loop {
+            let token = self.cursor.advance_token();
+            match token.kind {
+                LineComment { .. } | BlockComment { .. } | Whitespace => (),
+                Ident => todo!("only literals allowed for now"),
+                Literal { kind, suffix_start } => {
+                    return Some(token::Expr::Value(token::Value::new(
+                        self.current_range(token.len).into(),
+                        kind,
+                        suffix_start,
+                    )))
+                }
+                // out of place symbols
+                Semi | OpenBrace | CloseBrace | OpenParen | CloseParen | OpenBracket
+                | CloseBracket | Comma | Dot | At | Pound | Tilde | Question | Colon | Dollar
+                | Eq | Bang | Lt | Gt | Minus | And | Or | Plus | Star | Slash | Caret
+                | Percent => self.unexpected_punct(),
+                Unknown | InvalidIdent | InvalidPrefix => self
+                    .errors
+                    .push(LexicalError::InvalidChar(self.cursor.pos())),
+                Eof => return None,
+            }
+        }
+    }
+
+    fn unexpected_punct(&mut self) {
         self.errors.push(LexicalError::UnexpectedPunct(
-            self.current_char(len),
+            self.current_char(),
             self.cursor.pos() - 1,
         ))
     }

@@ -44,8 +44,6 @@ impl<'a> Reader<'a> {
     /// The top level parsing function; parses the next token from within a fn
     ///
     /// Parses both functions and modules, catching lexical errors
-    #[allow(dead_code)]
-    #[allow(unused)]
     pub fn next(&mut self, mode: FnParseMode) -> Option<token::Token> {
         use lex::token::TokenKind::*;
 
@@ -126,50 +124,46 @@ impl<'a> Reader<'a> {
         match kind {
             token::DeclKind::Let => self.parse_let(),
             token::DeclKind::Type(_) => todo!("not implemented yet"),
-            token::DeclKind::Const => todo!("not implemented yet"),
-            token::DeclKind::ConstType(_) => todo!("not implemented yet"),
+            token::DeclKind::Const | token::DeclKind::ConstType(_) => todo!("not implemented yet"),
         }
         .map(|(name, value)| (token::Decl::new(kind, name, value)))
     }
 
     fn parse_let(&mut self) -> Option<(Symbol, Option<token::Expr>)> {
-        use lex::token::TokenKind::*;
         let name = self.parse_until_ident();
         let Some(name) = name else {
             self.push_err(LexicalError::NameNotFound(self.cursor.pos()));
             return None;
         };
 
-        // should be '=' or ';'
+        let semi = self.eq_or_semi(name);
+        if semi.is_some() {
+            semi
+        } else {
+            let expr = self.parse_expr();
+            expr?;
+            Some((name, expr))
+        }
+    }
+
+    pub fn eq_or_semi(&mut self, name: ustr::Ustr) -> Option<(ustr::Ustr, Option<token::Expr>)> {
+        use lex::token::TokenKind::*;
         loop {
             let next = self.cursor.advance_token();
             match next.kind {
                 LineComment { .. } | BlockComment { .. } | Whitespace => (),
                 // uninit var
-                Semi => return Some((name, None)),
+                Semi => break Some((name, None)),
                 // init var
-                Eq => break,
-                // out of place symbols
-                Ident => self.push_err(LexicalError::UnexpectedIdent(
-                    self.current_range(next.len).into(),
-                    self.cursor.pos(),
-                )),
-                Literal { kind, .. } => {
-                    self.push_err(LexicalError::UnexpectedLit(kind, self.cursor.pos()));
-                }
-                Unknown | InvalidIdent | InvalidPrefix => {
-                    self.push_err(LexicalError::InvalidChar(self.cursor.pos()));
-                }
-                Eof => self.push_err(LexicalError::UnexpectedEof(self.cursor.pos())),
-                _ => {
-                    self.filter_punct(next);
-                }
+                Eq => break None,
+                _ if self.filter_ident(next) => (),
+                _ if self.filter_lit(next) => (),
+                _ if self.filter_invalid(next) => (),
+                _ if self.filter_eof(next) => (),
+                _ if self.filter_punct(next) => (),
+                _ => unreachable!(),
             }
         }
-
-        let expr = self.parse_expr();
-        expr?;
-        Some((name, expr))
     }
 
     fn parse_until_ident(&mut self) -> Option<Symbol> {
@@ -179,17 +173,11 @@ impl<'a> Reader<'a> {
             match token.kind {
                 LineComment { .. } | BlockComment { .. } | Whitespace => (),
                 Ident => return Some(self.current_range(token.len).into()),
-                // out of place symbols
-                Literal { kind, .. } => {
-                    self.push_err(LexicalError::UnexpectedLit(kind, self.cursor.pos()));
-                }
-                Unknown | InvalidIdent | InvalidPrefix => {
-                    self.push_err(LexicalError::InvalidChar(self.cursor.pos()));
-                }
                 Eof => return None,
-                _ => {
-                    self.filter_punct(token);
-                }
+                _ if self.filter_lit(token) => (),
+                _ if self.filter_invalid(token) => (),
+                _ if self.filter_punct(token) => (),
+                _ => unreachable!(),
             }
         }
     }
@@ -208,36 +196,76 @@ impl<'a> Reader<'a> {
                         suffix_start,
                     )))
                 }
-                // out of place symbols
-                Unknown | InvalidIdent | InvalidPrefix => {
-                    self.push_err(LexicalError::InvalidChar(self.cursor.pos()));
-                }
                 Eof => return None,
-                _ => {
-                    self.filter_punct(token);
-                }
+                _ if self.filter_invalid(token) => (),
+                _ if self.filter_punct(token) => (),
+                _ => unreachable!(),
             }
         }
     }
 
+    #[inline]
     fn filter_punct(&mut self, token: lex::Token) -> bool {
         use lex::token::TokenKind::*;
         if let Semi | OpenBrace | CloseBrace | OpenParen | CloseParen | OpenBracket | CloseBracket
         | Comma | Dot | At | Pound | Tilde | Question | Colon | Dollar | Eq | Bang | Lt
         | Gt | Minus | And | Or | Plus | Star | Slash | Caret | Percent = token.kind
         {
-            self.unexpected_punct();
+            self.push_err(LexicalError::UnexpectedPunct(
+                self.current_char(),
+                self.cursor.pos() - 1,
+            ));
             true
         } else {
             false
         }
     }
 
-    fn unexpected_punct(&mut self) {
-        self.push_err(LexicalError::UnexpectedPunct(
-            self.current_char(),
-            self.cursor.pos() - 1,
-        ));
+    #[inline]
+    fn filter_eof(&mut self, token: lex::Token) -> bool {
+        use lex::token::TokenKind::*;
+        if let Eof = token.kind {
+            self.push_err(LexicalError::UnexpectedEof(self.cursor.pos()));
+            true
+        } else {
+            false
+        }
+    }
+
+    #[inline]
+    fn filter_ident(&mut self, token: lex::Token) -> bool {
+        use lex::token::TokenKind::*;
+        if let Ident = token.kind {
+            self.push_err(LexicalError::UnexpectedIdent(
+                self.current_range(token.len).into(),
+                self.cursor.pos(),
+            ));
+            true
+        } else {
+            false
+        }
+    }
+
+    #[inline]
+    fn filter_lit(&mut self, token: lex::Token) -> bool {
+        use lex::token::TokenKind::*;
+        if let Literal { kind, .. } = token.kind {
+            self.push_err(LexicalError::UnexpectedLit(kind, self.cursor.pos()));
+            true
+        } else {
+            false
+        }
+    }
+
+    #[inline]
+    fn filter_invalid(&mut self, token: lex::Token) -> bool {
+        use lex::token::TokenKind::*;
+        if let Unknown | InvalidIdent | InvalidPrefix = token.kind {
+            self.push_err(LexicalError::InvalidChar(self.cursor.pos()));
+            true
+        } else {
+            false
+        }
     }
 
     fn push_err(&mut self, err: impl Into<ErrorOnce>) {

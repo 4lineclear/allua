@@ -1,5 +1,5 @@
 use crate::{
-    error::{ErrorMulti, LexicalError},
+    error::{ErrorMulti, ErrorOnce, LexicalError},
     lex::{self},
     util::Symbol,
 };
@@ -65,8 +65,7 @@ impl<'a> Reader<'a> {
                     terminated,
                 } => {
                     if !terminated {
-                        self.errors
-                            .push(LexicalError::UnclosedBlockComment(self.cursor.token_pos()));
+                        self.push_err(LexicalError::UnclosedBlockComment(self.cursor.token_pos()));
                     }
                     if let Some(style) = doc_style {
                         todo!("doc comments not added yet");
@@ -86,9 +85,9 @@ impl<'a> Reader<'a> {
                 // fn end
                 CloseBrace if mode == FnParseMode::Fn => return None,
                 // encoding err, add error and continue
-                Unknown | InvalidIdent | InvalidPrefix => self
-                    .errors
-                    .push(LexicalError::InvalidChar(self.cursor.pos())),
+                Unknown | InvalidIdent | InvalidPrefix => {
+                    self.push_err(LexicalError::InvalidChar(self.cursor.pos()));
+                }
                 Eof => return None,
                 // out of place symbol, add error and continue
                 _ => {
@@ -137,8 +136,7 @@ impl<'a> Reader<'a> {
         use lex::token::TokenKind::*;
         let name = self.parse_until_ident();
         let Some(name) = name else {
-            self.errors
-                .push(LexicalError::NameNotFound(self.cursor.pos()));
+            self.push_err(LexicalError::NameNotFound(self.cursor.pos()));
             return None;
         };
 
@@ -152,19 +150,17 @@ impl<'a> Reader<'a> {
                 // init var
                 Eq => break,
                 // out of place symbols
-                Ident => self.errors.push(LexicalError::UnexpectedIdent(
+                Ident => self.push_err(LexicalError::UnexpectedIdent(
                     self.current_range(next.len).into(),
                     self.cursor.pos(),
                 )),
-                Literal { kind, .. } => self
-                    .errors
-                    .push(LexicalError::UnexpectedLit(kind, self.cursor.pos())),
-                Unknown | InvalidIdent | InvalidPrefix => self
-                    .errors
-                    .push(LexicalError::InvalidChar(self.cursor.pos())),
-                Eof => self
-                    .errors
-                    .push(LexicalError::UnexpectedEof(self.cursor.pos())),
+                Literal { kind, .. } => {
+                    self.push_err(LexicalError::UnexpectedLit(kind, self.cursor.pos()));
+                }
+                Unknown | InvalidIdent | InvalidPrefix => {
+                    self.push_err(LexicalError::InvalidChar(self.cursor.pos()));
+                }
+                Eof => self.push_err(LexicalError::UnexpectedEof(self.cursor.pos())),
                 _ => {
                     self.filter_punct(next);
                 }
@@ -184,12 +180,12 @@ impl<'a> Reader<'a> {
                 LineComment { .. } | BlockComment { .. } | Whitespace => (),
                 Ident => return Some(self.current_range(token.len).into()),
                 // out of place symbols
-                Literal { kind, .. } => self
-                    .errors
-                    .push(LexicalError::UnexpectedLit(kind, self.cursor.pos())),
-                Unknown | InvalidIdent | InvalidPrefix => self
-                    .errors
-                    .push(LexicalError::InvalidChar(self.cursor.pos())),
+                Literal { kind, .. } => {
+                    self.push_err(LexicalError::UnexpectedLit(kind, self.cursor.pos()));
+                }
+                Unknown | InvalidIdent | InvalidPrefix => {
+                    self.push_err(LexicalError::InvalidChar(self.cursor.pos()));
+                }
                 Eof => return None,
                 _ => {
                     self.filter_punct(token);
@@ -213,9 +209,9 @@ impl<'a> Reader<'a> {
                     )))
                 }
                 // out of place symbols
-                Unknown | InvalidIdent | InvalidPrefix => self
-                    .errors
-                    .push(LexicalError::InvalidChar(self.cursor.pos())),
+                Unknown | InvalidIdent | InvalidPrefix => {
+                    self.push_err(LexicalError::InvalidChar(self.cursor.pos()));
+                }
                 Eof => return None,
                 _ => {
                     self.filter_punct(token);
@@ -238,9 +234,13 @@ impl<'a> Reader<'a> {
     }
 
     fn unexpected_punct(&mut self) {
-        self.errors.push(LexicalError::UnexpectedPunct(
+        self.push_err(LexicalError::UnexpectedPunct(
             self.current_char(),
             self.cursor.pos() - 1,
         ));
+    }
+
+    fn push_err(&mut self, err: impl Into<ErrorOnce>) {
+        self.errors.push(err);
     }
 }

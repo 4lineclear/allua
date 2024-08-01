@@ -37,6 +37,7 @@ pub fn is_id_continue(c: char) -> bool {
     unicode_ident::is_xid_continue(c)
 }
 
+#[must_use]
 pub fn nfc_normalize(string: &str) -> Symbol {
     match is_nfc_quick(string.chars()) {
         IsNormalized::Yes => Symbol::from(string),

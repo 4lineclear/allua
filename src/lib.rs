@@ -9,9 +9,11 @@
     rustdoc::all,
     future_incompatible
 )]
-// #![warn(missing_debug_implementations)]
-// #![allow(clippy::enum_glob_use)]
-// #![allow(clippy::module_name_repetitions)]
+#![warn(missing_debug_implementations)]
+#![allow(clippy::enum_glob_use)]
+#![allow(clippy::single_match)]
+#![allow(clippy::module_name_repetitions)]
+#![allow(clippy::equatable_if_let)]
 // #![allow(clippy::multiple_crate_versions)]
 // #![allow(clippy::must_use_candidate)]
 // #![allow(clippy::wildcard_dependencies)]
@@ -26,5 +28,6 @@
 pub mod error;
 pub mod lex;
 pub mod parse;
+#[allow(clippy::unicode_not_nfc)]
 pub mod unicode;
 pub mod util;

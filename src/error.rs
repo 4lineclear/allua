@@ -23,7 +23,7 @@ impl From<Vec<ErrorOnce>> for ErrorMulti {
 
 impl ErrorMulti {
     pub fn push(&mut self, err: impl Into<ErrorOnce>) {
-        self.errors.push(err.into())
+        self.errors.push(err.into());
     }
 }
 

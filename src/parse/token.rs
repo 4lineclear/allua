@@ -13,6 +13,7 @@ pub struct Module {
 }
 
 impl Module {
+    #[must_use]
     pub fn new(name: &str) -> Self {
         let function = Fn {
             name: name.into(),
@@ -77,7 +78,8 @@ pub struct Decl {
 }
 
 impl Decl {
-    pub fn new(kind: DeclKind, name: Symbol, value: Option<Expr>) -> Self {
+    #[must_use]
+    pub const fn new(kind: DeclKind, name: Symbol, value: Option<Expr>) -> Self {
         Self { kind, name, value }
     }
 }
@@ -110,7 +112,8 @@ pub struct Value {
 }
 
 impl Value {
-    pub fn new(value: Symbol, kind: lex::LiteralKind, suffix_start: u32) -> Self {
+    #[must_use]
+    pub const fn new(value: Symbol, kind: lex::LiteralKind, suffix_start: u32) -> Self {
         Self {
             value,
             kind,
@@ -151,7 +154,7 @@ impl<T> Default for Span<T> {
     }
 }
 
-impl<'a, T> Span<T> {
+impl<T> Span<T> {
     #[must_use]
     pub fn push(self, token: T, set: &mut Vec<Token>) -> Self
     where

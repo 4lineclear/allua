@@ -7,7 +7,7 @@ const PUNCT_SRC: &str = "}()[],.@#~?:$=!<>-&|+*/^%";
 #[test]
 fn unexpected_punct() {
     let mut reader = Reader::new(PUNCT_SRC);
-    let token = reader.next(crate::parse::Mode::Module);
+    let token = reader.next(crate::parse::FnParseMode::Module);
     assert_eq!(token, None);
 
     let expected_errors = expect![
@@ -46,7 +46,7 @@ fn unexpected_punct() {
 fn unclosed_block_comment() {
     let src = "/*/*/**/*/";
     let mut reader = Reader::new(src);
-    let token = reader.next(crate::parse::Mode::Module);
+    let token = reader.next(crate::parse::FnParseMode::Module);
     assert_eq!(token, None);
 
     let expected_errors = expect![
@@ -60,7 +60,7 @@ fn unclosed_block_comment() {
 fn let_punct_fail() {
     let src = "let".to_owned() + PUNCT_SRC;
     let mut reader = Reader::new(&src);
-    let token = reader.next(crate::parse::Mode::Module);
+    let token = reader.next(crate::parse::FnParseMode::Module);
     assert_eq!(token, None);
 
     let expected_errors = expect![
@@ -100,7 +100,7 @@ fn let_punct_fail() {
 fn let_success() {
     let src = "let yeah = 3";
     let mut reader = Reader::new(src);
-    let token = reader.next(crate::parse::Mode::Module);
+    let token = reader.next(crate::parse::FnParseMode::Module);
     let expected_token = expect![
         "Some(Decl(Decl { kind: Let, name: u!(\"yeah\"), value: Some(Value(Value \
             { value: u!(\"3\"), kind: Int { base: Decimal, empty_int: false }, suffix_start: 1 })) }))"

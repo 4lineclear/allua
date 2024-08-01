@@ -1,9 +1,7 @@
 //! pre-lexing
 //!
 //! At this level, error handling and keywords don't exist
-
-// NOTE: pre-lexing done here
-// must create own post-lexing
+#![allow(clippy::unnested_or_patterns)]
 
 use unicode_properties::UnicodeEmoji;
 
@@ -27,7 +25,7 @@ pub use token::{
 // TODO: read over, refine, and add clippy lints
 
 pub fn tokenize(input: &str) -> impl Iterator<Item = Token> + '_ {
-    Cursor::new(input).into_iter()
+    Cursor::new(input)
 }
 
 #[must_use]
@@ -42,9 +40,8 @@ impl Cursor<'_> {
     /// Parses a token from the input string.
     pub fn advance_token(&mut self) -> Token {
         self.token_pos = self.pos();
-        let first_char = match self.bump() {
-            Some(c) => c,
-            None => return Token::new(TokenKind::Eof, 0),
+        let Some(first_char) = self.bump() else {
+            return Token::new(TokenKind::Eof, 0);
         };
         let token_kind = match first_char {
             // Slash, comment or block comment.
@@ -242,6 +239,7 @@ impl Cursor<'_> {
         let kind = Str { terminated };
         Literal { kind, suffix_start }
     }
+
     fn c_or_byte_string(
         &mut self,
         mk_kind: impl FnOnce(bool) -> LiteralKind,
@@ -457,10 +455,7 @@ impl Cursor<'_> {
         // This way, it eats the whole raw string.
         let n_hashes = self.raw_string_unvalidated(prefix_len)?;
         // Only up to 255 `#`s are allowed in raw strings
-        match u8::try_from(n_hashes) {
-            Ok(num) => Ok(num),
-            Err(_) => Err(RawStrError::TooManyDelimiters { found: n_hashes }),
-        }
+        u8::try_from(n_hashes).map_or(Err(RawStrError::TooManyDelimiters { found: n_hashes }), Ok)
     }
 
     fn raw_string_unvalidated(&mut self, prefix_len: u32) -> Result<u32, RawStrError> {
@@ -591,10 +586,6 @@ impl Iterator for Cursor<'_> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let token = self.advance_token();
-        if token.kind != TokenKind::Eof {
-            Some(token)
-        } else {
-            None
-        }
+        (token.kind == TokenKind::Eof).then_some(token)
     }
 }

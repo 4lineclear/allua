@@ -14,36 +14,30 @@ pub struct Reader<'a> {
     cursor: lex::Cursor<'a>,
     errors: ErrorMulti,
     src: &'a str,
-    // buf: Vec<token::Token>,
 }
 
-#[derive(PartialEq)]
-pub enum Mode {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FnParseMode {
     Module,
     Fn,
 }
 
 impl<'a> Reader<'a> {
+    #[must_use]
     pub fn new(src: &'a str) -> Self {
         Self {
             cursor: lex::Cursor::new(src),
             errors: ErrorMulti::default(),
             src,
-            // buf: Vec::new(),
         }
     }
 
     /// Parse a module
     pub fn module(&mut self, name: &str) -> token::Module {
         let mut md = token::Module::new(name);
-
-        loop {
-            match self.next(Mode::Module) {
-                Some(token) => md.push(token),
-                None => break,
-            };
+        while let Some(token) = self.next(FnParseMode::Module) {
+            md.push(token);
         }
-
         md
     }
 
@@ -52,7 +46,7 @@ impl<'a> Reader<'a> {
     /// Parses both functions and modules, catching lexical errors
     #[allow(dead_code)]
     #[allow(unused)]
-    pub fn next(&mut self, mode: Mode) -> Option<token::Token> {
+    pub fn next(&mut self, mode: FnParseMode) -> Option<token::Token> {
         use lex::token::TokenKind::*;
 
         loop {
@@ -90,16 +84,16 @@ impl<'a> Reader<'a> {
                     todo!("code blocks not implemented yet!")
                 }
                 // fn end
-                CloseBrace if mode == Mode::Fn => return None,
-                // out of place symbol, add error and continue
-                CloseBrace | OpenParen | CloseParen | OpenBracket | CloseBracket | Comma | Dot
-                | At | Pound | Tilde | Question | Colon | Dollar | Eq | Bang | Lt | Gt | Minus
-                | And | Or | Plus | Star | Slash | Caret | Percent => self.unexpected_punct(),
+                CloseBrace if mode == FnParseMode::Fn => return None,
                 // encoding err, add error and continue
                 Unknown | InvalidIdent | InvalidPrefix => self
                     .errors
                     .push(LexicalError::InvalidChar(self.cursor.pos())),
                 Eof => return None,
+                // out of place symbol, add error and continue
+                _ => {
+                    self.filter_punct(token);
+                }
             }
         }
     }
@@ -167,21 +161,18 @@ impl<'a> Reader<'a> {
                 Literal { kind, .. } => self
                     .errors
                     .push(LexicalError::UnexpectedLit(kind, self.cursor.pos())),
-                OpenBrace | CloseBrace | OpenParen | CloseParen | OpenBracket | CloseBracket
-                | Comma | Dot | At | Pound | Tilde | Question | Colon | Dollar | Bang | Lt | Gt
-                | Minus | And | Or | Plus | Star | Slash | Caret | Percent => {
-                    self.unexpected_punct()
-                }
                 Unknown | InvalidIdent | InvalidPrefix => self
                     .errors
                     .push(LexicalError::InvalidChar(self.cursor.pos())),
-                Eof => (),
+                Eof => todo!("eof here not handled yet"),
+                _ => {
+                    self.filter_punct(next);
+                }
             }
         }
+
         let expr = self.parse_expr();
-        if expr.is_none() {
-            return None;
-        }
+        expr?;
         Some((name, expr))
     }
 
@@ -196,14 +187,13 @@ impl<'a> Reader<'a> {
                 Literal { kind, .. } => self
                     .errors
                     .push(LexicalError::UnexpectedLit(kind, self.cursor.pos())),
-                Semi | OpenBrace | CloseBrace | OpenParen | CloseParen | OpenBracket
-                | CloseBracket | Comma | Dot | At | Pound | Tilde | Question | Colon | Dollar
-                | Eq | Bang | Lt | Gt | Minus | And | Or | Plus | Star | Slash | Caret
-                | Percent => self.unexpected_punct(),
                 Unknown | InvalidIdent | InvalidPrefix => self
                     .errors
                     .push(LexicalError::InvalidChar(self.cursor.pos())),
                 Eof => return None,
+                _ => {
+                    self.filter_punct(token);
+                }
             }
         }
     }
@@ -223,15 +213,27 @@ impl<'a> Reader<'a> {
                     )))
                 }
                 // out of place symbols
-                Semi | OpenBrace | CloseBrace | OpenParen | CloseParen | OpenBracket
-                | CloseBracket | Comma | Dot | At | Pound | Tilde | Question | Colon | Dollar
-                | Eq | Bang | Lt | Gt | Minus | And | Or | Plus | Star | Slash | Caret
-                | Percent => self.unexpected_punct(),
                 Unknown | InvalidIdent | InvalidPrefix => self
                     .errors
                     .push(LexicalError::InvalidChar(self.cursor.pos())),
                 Eof => return None,
+                _ => {
+                    self.filter_punct(token);
+                }
             }
+        }
+    }
+
+    fn filter_punct(&mut self, token: lex::Token) -> bool {
+        use lex::token::TokenKind::*;
+        if let Semi | OpenBrace | CloseBrace | OpenParen | CloseParen | OpenBracket | CloseBracket
+        | Comma | Dot | At | Pound | Tilde | Question | Colon | Dollar | Eq | Bang | Lt
+        | Gt | Minus | And | Or | Plus | Star | Slash | Caret | Percent = token.kind
+        {
+            self.unexpected_punct();
+            true
+        } else {
+            false
         }
     }
 
@@ -239,6 +241,6 @@ impl<'a> Reader<'a> {
         self.errors.push(LexicalError::UnexpectedPunct(
             self.current_char(),
             self.cursor.pos() - 1,
-        ))
+        ));
     }
 }

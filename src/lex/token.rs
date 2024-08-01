@@ -10,8 +10,9 @@ pub struct Token {
 }
 
 impl Token {
-    pub fn new(kind: TokenKind, len: u32) -> Token {
-        Token { kind, len }
+    #[must_use]
+    pub const fn new(kind: TokenKind, len: u32) -> Self {
+        Self { kind, len }
     }
 }
 
@@ -49,7 +50,7 @@ pub enum TokenKind {
     /// suffix, but may be present here on string and float literals. Users of
     /// this type will need to check for and reject that case.
     ///
-    /// See [LiteralKind] for more details.
+    /// See [`LiteralKind`] for more details.
     Literal {
         kind: LiteralKind,
         suffix_start: u32,
@@ -119,7 +120,8 @@ pub enum TokenKind {
 }
 
 impl TokenKind {
-    pub fn name(self) -> &'static str {
+    #[must_use]
+    pub const fn name(self) -> &'static str {
         use LiteralKind::*;
         use TokenKind::*;
         match self {
@@ -155,7 +157,7 @@ impl TokenKind {
             Tilde => "~",
             Question => "?",
             Colon => ":",
-            Dollar => "?",
+            Dollar => "$",
             Eq => "=",
             Bang => "!",
             Lt => "<",
@@ -186,6 +188,7 @@ pub enum DocStyle {
 /// this type. This means that float literals like `1f32` are classified by this
 /// type as `Int`. (Compare against `rustc_ast::token::LitKind` and
 /// `rustc_ast::ast::LitKind`).
+#[allow(clippy::doc_markdown)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum LiteralKind {
     /// "12_u8", "0o100", "0b120i99", "1f32".

@@ -15,52 +15,52 @@ pub struct Cursor<'a> {
     len_remaining: usize,
     /// Iterator over chars. Slightly faster than a &str.
     chars: Chars<'a>,
-    #[cfg(debug_assertions)]
     prev: char,
-    #[cfg(debug_assertions)]
     prev_token: Token,
 }
 
 pub const EOF_CHAR: char = '\0';
 
 impl<'a> Cursor<'a> {
-    pub fn new(input: &'a str) -> Cursor<'a> {
+    #[must_use]
+    pub fn new(input: &'a str) -> Self {
         Cursor {
             pos: 0,
             token_pos: 0,
             len_remaining: input.len(),
             chars: input.chars(),
-            #[cfg(debug_assertions)]
             prev: EOF_CHAR,
-            #[cfg(debug_assertions)]
             prev_token: Token::new(TokenKind::Eof, 0),
         }
     }
 
-    pub fn pos(&self) -> u32 {
+    #[must_use]
+    pub const fn pos(&self) -> u32 {
         self.pos
     }
 
     /// the position of the start of the previous token
-    pub fn token_pos(&self) -> u32 {
+    #[must_use]
+    pub const fn token_pos(&self) -> u32 {
         self.token_pos
     }
 
+    #[must_use]
     pub fn as_str(&self) -> &'a str {
         self.chars.as_str()
     }
 
-    /// Returns the last eaten symbol
+    /// Returns the last eaten symbol (or `'\0'` in release builds).
     /// (For debug assertions only.)
-    #[cfg(debug_assertions)]
-    pub fn prev(&self) -> char {
+    #[must_use]
+    pub const fn prev(&self) -> char {
         self.prev
     }
 
     /// Returns the last eaten token
     /// (For debug assertions only.)
-    #[cfg(debug_assertions)]
-    pub fn prev_token(&self) -> Token {
+    #[must_use]
+    pub const fn prev_token(&self) -> Token {
         self.prev_token
     }
 
@@ -68,12 +68,14 @@ impl<'a> Cursor<'a> {
     /// If requested position doesn't exist, `EOF_CHAR` is returned.
     /// However, getting `EOF_CHAR` doesn't always mean actual end of file,
     /// it should be checked with `is_eof` method.
+    #[must_use]
     pub fn first(&self) -> char {
         // `.next()` optimizes better than `.nth(0)`
         self.chars.clone().next().unwrap_or(EOF_CHAR)
     }
 
     /// Peeks the second symbol from the input stream without consuming it.
+    #[must_use]
     pub fn second(&self) -> char {
         // `.next()` optimizes better than `.nth(1)`
         let mut iter = self.chars.clone();
@@ -82,6 +84,7 @@ impl<'a> Cursor<'a> {
     }
 
     /// Peeks the third symbol from the input stream without consuming it.
+    #[must_use]
     pub fn third(&self) -> char {
         // `.next()` optimizes better than `.nth(1)`
         let mut iter = self.chars.clone();
@@ -91,11 +94,14 @@ impl<'a> Cursor<'a> {
     }
 
     /// Checks if there is nothing more to consume.
+    #[must_use]
     pub fn is_eof(&self) -> bool {
         self.chars.as_str().is_empty()
     }
 
     /// Returns amount of already consumed symbols.
+    #[must_use]
+    #[allow(clippy::cast_possible_truncation)]
     pub fn pos_within_token(&self) -> u32 {
         (self.len_remaining - self.chars.as_str().len()) as u32
     }
@@ -106,6 +112,7 @@ impl<'a> Cursor<'a> {
     }
 
     /// Moves to the next character.
+    #[allow(clippy::cast_possible_truncation)]
     pub fn bump(&mut self) -> Option<char> {
         let c = self.chars.next()?;
         self.pos += c.len_utf8() as u32;

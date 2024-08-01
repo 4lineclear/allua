@@ -1,5 +1,7 @@
 //! Utilities for validating string and char literals and turning them into
 //! values they represent.
+#![allow(clippy::missing_errors_doc)]
+#![allow(clippy::cast_possible_truncation)]
 
 use std::ops::Range;
 use std::str::Chars;
@@ -15,6 +17,7 @@ mod test;
 /// Errors and warnings that can occur during string unescaping. They mostly
 /// relate to malformed escape sequences, but there are a few that are about
 /// other problems.
+#[allow(clippy::doc_markdown)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EscapeError {
     /// Expected 1 char, but 0 were found.
@@ -75,10 +78,11 @@ pub enum EscapeError {
 
 impl EscapeError {
     /// Returns true for actual errors, as opposed to warnings.
-    pub fn is_fatal(&self) -> bool {
+    #[must_use]
+    pub const fn is_fatal(&self) -> bool {
         !matches!(
             self,
-            EscapeError::UnskippedWhitespaceWarning | EscapeError::MultipleSkippedLinesWarning
+            Self::UnskippedWhitespaceWarning | Self::MultipleSkippedLinesWarning
         )
     }
 }
@@ -104,7 +108,7 @@ where
             if let Ok('\0') = result {
                 result = Err(EscapeError::NulInCStr);
             }
-            callback(r, result)
+            callback(r, result);
         }),
         CStr => unreachable!(),
     }
@@ -112,6 +116,7 @@ where
 
 /// Used for mixed utf8 string literals, i.e. those that allow both unicode
 /// chars and high bytes.
+#[derive(Debug)]
 pub enum MixedUnit {
     /// Used for ASCII chars (written directly or via `\x00`..`\x7f` escapes)
     /// and Unicode chars (written directly or via `\u` escapes).
@@ -131,16 +136,16 @@ pub enum MixedUnit {
 
 impl From<char> for MixedUnit {
     fn from(c: char) -> Self {
-        MixedUnit::Char(c)
+        Self::Char(c)
     }
 }
 
 impl From<u8> for MixedUnit {
     fn from(n: u8) -> Self {
         if n.is_ascii() {
-            MixedUnit::Char(n as char)
+            Self::Char(n as char)
         } else {
-            MixedUnit::HighByte(n)
+            Self::HighByte(n)
         }
     }
 }
@@ -158,7 +163,7 @@ where
             if let Ok(MixedUnit::Char('\0')) = result {
                 result = Err(EscapeError::NulInCStr);
             }
-            callback(r, result)
+            callback(r, result);
         }),
         Char | Byte | Str | RawStr | ByteStr | RawByteStr | RawCStr => unreachable!(),
     }
@@ -177,7 +182,7 @@ pub fn unescape_byte(src: &str) -> Result<u8, EscapeError> {
 }
 
 /// What kind of literal do we parse.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Mode {
     Char,
 
@@ -194,7 +199,8 @@ pub enum Mode {
 }
 
 impl Mode {
-    pub fn in_double_quotes(self) -> bool {
+    #[must_use]
+    pub const fn in_double_quotes(self) -> bool {
         match self {
             Str | RawStr | ByteStr | RawByteStr | CStr | RawCStr => true,
             Char | Byte => false,
@@ -202,7 +208,7 @@ impl Mode {
     }
 
     /// Are `\x80`..`\xff` allowed?
-    fn allow_high_bytes(self) -> bool {
+    const fn allow_high_bytes(self) -> bool {
         match self {
             Char | Str => false,
             Byte | ByteStr | CStr => true,
@@ -212,7 +218,7 @@ impl Mode {
 
     /// Are unicode (non-ASCII) chars allowed?
     #[inline]
-    fn allow_unicode_chars(self) -> bool {
+    const fn allow_unicode_chars(self) -> bool {
         match self {
             Byte | ByteStr | RawByteStr => false,
             Char | Str | RawStr | CStr | RawCStr => true,
@@ -220,7 +226,7 @@ impl Mode {
     }
 
     /// Are unicode escapes (`\u`) allowed?
-    fn allow_unicode_escapes(self) -> bool {
+    const fn allow_unicode_escapes(self) -> bool {
         match self {
             Byte | ByteStr => false,
             Char | Str | CStr => true,
@@ -228,7 +234,8 @@ impl Mode {
         }
     }
 
-    pub fn prefix_noraw(self) -> &'static str {
+    #[must_use]
+    pub const fn prefix_noraw(self) -> &'static str {
         match self {
             Char | Str | RawStr => "",
             Byte | ByteStr | RawByteStr => "b",
@@ -310,7 +317,7 @@ fn scan_unicode(chars: &mut Chars<'_>, allow_unicode_escapes: bool) -> Result<ch
                 }
 
                 break std::char::from_u32(value).ok_or({
-                    if value > 0x10FFFF {
+                    if value > 0x0010_FFFF {
                         EscapeError::OutOfRangeUnicodeEscape
                     } else {
                         EscapeError::LoneSurrogateUnicodeEscape
@@ -333,7 +340,7 @@ fn scan_unicode(chars: &mut Chars<'_>, allow_unicode_escapes: bool) -> Result<ch
 }
 
 #[inline]
-fn ascii_check(c: char, allow_unicode_chars: bool) -> Result<char, EscapeError> {
+const fn ascii_check(c: char, allow_unicode_chars: bool) -> Result<char, EscapeError> {
     if allow_unicode_chars || c.is_ascii() {
         Ok(c)
     } else {
@@ -378,7 +385,7 @@ where
                         // For details see [Rust language reference]
                         // (https://doc.rust-lang.org/reference/tokens.html#string-literals).
                         skip_ascii_whitespace(&mut chars, start, &mut |range, err| {
-                            callback(range, Err(err))
+                            callback(range, Err(err));
                         });
                         continue;
                     }
@@ -446,8 +453,9 @@ where
 }
 
 #[inline]
+#[must_use]
 pub fn byte_from_char(c: char) -> u8 {
     let res = c as u32;
-    debug_assert!(res <= u8::MAX as u32, "guaranteed because of ByteStr");
+    debug_assert!(u8::try_from(res).is_ok(), "guaranteed because of ByteStr");
     res as u8
 }

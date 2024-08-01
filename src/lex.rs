@@ -41,6 +41,7 @@ pub fn is_ident(s: &str) -> bool {
 impl Cursor<'_> {
     /// Parses a token from the input string.
     pub fn advance_token(&mut self) -> Token {
+        self.token_pos = self.pos();
         let first_char = match self.bump() {
             Some(c) => c,
             None => return Token::new(TokenKind::Eof, 0),

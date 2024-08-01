@@ -118,6 +118,62 @@ pub enum TokenKind {
     Eof,
 }
 
+impl TokenKind {
+    pub fn name(self) -> &'static str {
+        use LiteralKind::*;
+        use TokenKind::*;
+        match self {
+            LineComment { .. } => "line comment",
+            BlockComment { .. } => "block comment",
+            Whitespace => "whitespace",
+            Ident => "ident",
+            InvalidIdent => "invalid ident",
+            InvalidPrefix => "invalid prefix",
+            Literal { kind, .. } => match kind {
+                Int { .. } => "int",
+                Float { .. } => "float",
+                Char { .. } => "char",
+                Byte { .. } => "byte",
+                Str { .. } => "str",
+                ByteStr { .. } => "byte str",
+                CStr { .. } => "c str",
+                RawStr { .. } => "raw str",
+                RawByteStr { .. } => "raw byte str",
+                RawCStr { .. } => "raw c str",
+            },
+            Semi => "semicolon",
+            Comma => "comma",
+            Dot => "dot",
+            OpenParen => "open parenthesis",
+            CloseParen => "close parenthesis",
+            OpenBrace => "open brace",
+            CloseBrace => "close brace",
+            OpenBracket => "open bracket",
+            CloseBracket => "close bracket",
+            At => "@",
+            Pound => "#",
+            Tilde => "~",
+            Question => "?",
+            Colon => ":",
+            Dollar => "?",
+            Eq => "=",
+            Bang => "!",
+            Lt => "<",
+            Gt => ">",
+            Minus => "-",
+            And => "&",
+            Or => "|",
+            Plus => "+",
+            Star => "*",
+            Slash => "/",
+            Caret => "^",
+            Percent => "%",
+            Unknown => "unknown",
+            Eof => "end of file",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DocStyle {
     Outer,

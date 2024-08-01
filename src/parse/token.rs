@@ -109,18 +109,19 @@ pub enum Expr {
     FnCall { name: Symbol, params: Span<Value> },
 }
 
+/// A span of tokens
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Span<T> {
-    start: u32,
-    end: u32,
+    from: u32,
+    to: u32,
     kind: PhantomData<T>,
 }
 
 impl<T> Default for Span<T> {
     fn default() -> Self {
         Self {
-            start: 0,
-            end: 0,
+            from: 0,
+            to: 0,
             kind: PhantomData,
         }
     }
@@ -134,8 +135,8 @@ impl<'a, T> Span<T> {
     {
         set.push(token.into());
         Self {
-            start: self.start,
-            end: self.end + 1,
+            from: self.from,
+            to: self.to + 1,
             kind: self.kind,
         }
     }

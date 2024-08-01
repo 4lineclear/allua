@@ -1,6 +1,8 @@
 use std::error::Error as StdError;
 use std::fmt::Display;
 
+use crate::lex;
+
 // NOTE: types of errors:
 // - lexical    : encoding, definition, ident rules, token structure.
 // - syntacitcal: contextual, set path, not one of.
@@ -36,13 +38,17 @@ impl From<LexicalError> for ErrorOnce {
     }
 }
 
+// TODO: create extendable errors
+// ie invalid punct could be a range instead of a char
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LexicalError {
     /// Some type of unclosed block
     Unclosed(u32),
     UnclosedBlockComment(u32),
-    Invalid(u32),
-    UnexpectedPunct(char),
+    InvalidChar(u32),
+    NameNotFound(u32),
+    UnexpectedPunct(char, u32),
+    UnexpectedLit(lex::LiteralKind, u32),
 }
 
 impl Display for ErrorOnce {

@@ -8,6 +8,10 @@ use super::{token::TokenKind, Token};
 /// and position can be shifted forward via `bump` method.
 #[derive(Debug)]
 pub struct Cursor<'a> {
+    /// the current bye position
+    pos: u32,
+    /// the position of the start of the previous token
+    pub(super) token_pos: u32,
     len_remaining: usize,
     /// Iterator over chars. Slightly faster than a &str.
     chars: Chars<'a>,
@@ -22,6 +26,8 @@ pub const EOF_CHAR: char = '\0';
 impl<'a> Cursor<'a> {
     pub fn new(input: &'a str) -> Cursor<'a> {
         Cursor {
+            pos: 0,
+            token_pos: 0,
             len_remaining: input.len(),
             chars: input.chars(),
             #[cfg(debug_assertions)]
@@ -29,6 +35,15 @@ impl<'a> Cursor<'a> {
             #[cfg(debug_assertions)]
             prev_token: Token::new(TokenKind::Eof, 0),
         }
+    }
+
+    pub fn pos(&self) -> u32 {
+        self.pos
+    }
+
+    /// the position of the start of the previous token
+    pub fn token_pos(&self) -> u32 {
+        self.token_pos
     }
 
     pub fn as_str(&self) -> &'a str {
@@ -48,6 +63,7 @@ impl<'a> Cursor<'a> {
     pub fn prev_token(&self) -> Token {
         self.prev_token
     }
+
     /// Peeks the next symbol from the input stream without consuming it.
     /// If requested position doesn't exist, `EOF_CHAR` is returned.
     /// However, getting `EOF_CHAR` doesn't always mean actual end of file,
@@ -92,6 +108,7 @@ impl<'a> Cursor<'a> {
     /// Moves to the next character.
     pub fn bump(&mut self) -> Option<char> {
         let c = self.chars.next()?;
+        self.pos += c.len_utf8() as u32;
 
         #[cfg(debug_assertions)]
         {

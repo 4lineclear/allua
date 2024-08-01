@@ -88,10 +88,7 @@ impl<'a> Reader<'a> {
                     self.push_err(LexicalError::InvalidChar(self.cursor.pos()));
                 }
                 Eof => return None,
-                // out of place symbol, add error and continue
-                _ => {
-                    self.filter_punct(token);
-                }
+                _ => self.filter_all(token),
             }
         }
     }
@@ -150,19 +147,12 @@ impl<'a> Reader<'a> {
     pub fn eq_or_semi(&mut self, name: ustr::Ustr) -> Option<(ustr::Ustr, Option<token::Expr>)> {
         use lex::token::TokenKind::*;
         loop {
-            let next = self.cursor.advance_token();
-            match next.kind {
+            let token = self.cursor.advance_token();
+            match token.kind {
                 LineComment { .. } | BlockComment { .. } | Whitespace => (),
-                // uninit var
                 Semi => break Some((name, None)),
-                // init var
                 Eq => break None,
-                _ if self.filter_ident(next) => (),
-                _ if self.filter_lit(next) => (),
-                _ if self.filter_invalid(next) => (),
-                _ if self.filter_eof(next) => (),
-                _ if self.filter_punct(next) => (),
-                _ => unreachable!(),
+                _ => self.filter_all(token),
             }
         }
     }
@@ -175,10 +165,7 @@ impl<'a> Reader<'a> {
                 LineComment { .. } | BlockComment { .. } | Whitespace => (),
                 Ident => return Some(self.current_range(token.len).into()),
                 Eof => return None,
-                _ if self.filter_lit(token) => (),
-                _ if self.filter_invalid(token) => (),
-                _ if self.filter_punct(token) => (),
-                _ => unreachable!(),
+                _ => self.filter_all(token),
             }
         }
     }
@@ -198,75 +185,30 @@ impl<'a> Reader<'a> {
                     )))
                 }
                 Eof => return None,
-                _ if self.filter_invalid(token) => (),
-                _ if self.filter_punct(token) => (),
-                _ => unreachable!(),
+                _ => self.filter_all(token),
             }
         }
     }
 
-    #[inline]
-    fn filter_punct(&mut self, token: lex::Token) -> bool {
-        use lex::token::TokenKind::*;
-        if let Semi | OpenBrace | CloseBrace | OpenParen | CloseParen | OpenBracket | CloseBracket
-        | Comma | Dot | At | Pound | Tilde | Question | Colon | Dollar | Eq | Bang | Lt
-        | Gt | Minus | And | Or | Plus | Star | Slash | Caret | Percent = token.kind
-        {
-            self.push_err(LexicalError::UnexpectedPunct(
-                self.current_char(),
-                self.cursor.pos() - 1,
-            ));
-            true
-        } else {
-            false
-        }
-    }
-
-    #[inline]
-    fn filter_eof(&mut self, token: lex::Token) -> bool {
-        use lex::token::TokenKind::*;
-        if let Eof = token.kind {
-            self.push_err(LexicalError::UnexpectedEof(self.cursor.pos()));
-            true
-        } else {
-            false
-        }
-    }
-
-    #[inline]
-    fn filter_ident(&mut self, token: lex::Token) -> bool {
-        use lex::token::TokenKind::*;
-        if let Ident = token.kind {
-            self.push_err(LexicalError::UnexpectedIdent(
-                self.current_range(token.len).into(),
-                self.cursor.pos(),
-            ));
-            true
-        } else {
-            false
-        }
-    }
-
-    #[inline]
-    fn filter_lit(&mut self, token: lex::Token) -> bool {
-        use lex::token::TokenKind::*;
-        if let Literal { kind, .. } = token.kind {
-            self.push_err(LexicalError::UnexpectedLit(kind, self.cursor.pos()));
-            true
-        } else {
-            false
-        }
-    }
-
-    #[inline]
-    fn filter_invalid(&mut self, token: lex::Token) -> bool {
-        use lex::token::TokenKind::*;
-        if let Unknown | InvalidIdent | InvalidPrefix = token.kind {
-            self.push_err(LexicalError::InvalidChar(self.cursor.pos()));
-            true
-        } else {
-            false
-        }
+    pub fn filter_all(&mut self, token: lex::Token) {
+        use lex::TokenKind::*;
+        use LexicalError::*;
+        let pos = self.cursor.pos();
+        self.push_err(match token.kind {
+            LineComment { doc_style } | BlockComment { doc_style, .. } => {
+                UnexpectedComment(doc_style, pos)
+            }
+            Whitespace => UnexpectedWhitespace(pos),
+            Literal { kind, .. } => UnexpectedLit(kind, pos),
+            Semi | Comma | Dot | OpenParen | CloseParen | OpenBrace | CloseBrace | OpenBracket
+            | CloseBracket | At | Pound | Tilde | Question | Colon | Dollar | Eq | Bang | Lt
+            | Gt | Minus | And | Or | Plus | Star | Slash | Caret | Percent => {
+                UnexpectedPunct(self.current_char(), pos - 1)
+            }
+            Ident => UnexpectedIdent(self.current_range(token.len).into(), pos),
+            InvalidIdent | InvalidPrefix | Unknown => InvalidChar(pos),
+            Eof => UnexpectedEof(pos),
+        });
     }
 
     fn push_err(&mut self, err: impl Into<ErrorOnce>) {

@@ -70,6 +70,8 @@ pub enum LexicalError {
     /// should (?maybe) be constructed directly
     UnexpectedRange(u32, u32),
     UnexpectedLit(lex::LiteralKind, u32),
+    UnexpectedComment(Option<lex::DocStyle>, u32),
+    UnexpectedWhitespace(u32),
 }
 
 impl Display for ErrorOnce {

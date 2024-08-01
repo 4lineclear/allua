@@ -11,7 +11,6 @@ fn unexpected_punct() {
     assert_eq!(token, None);
 
     let expected_errors = expect!["ErrorMulti { errors: [Lexical(UnexpectedRange(0, 24))] }"];
-
     expected_errors.assert_eq(&format!("{:?}", reader.errors));
 }
 
@@ -48,6 +47,24 @@ fn let_success() {
             { value: u!(\"3\"), kind: Int { base: Decimal, empty_int: false }, suffix_start: 1 })) }))"
     ];
     expected_token.assert_eq(&format!("{token:?}",));
+
+    let expected_errors = expect!["ErrorMulti { errors: [] }"];
+    expected_errors.assert_eq(&format!("{:?}", reader.errors));
+}
+
+#[test]
+fn let_chain() {
+    let src = "let yeah = 3;".repeat(10);
+    let mut reader = Reader::new(&src);
+    let token = reader.next(crate::parse::FnParseMode::Module);
+    for _ in 0..10 {
+        let expected_token = expect![[
+            "Some(Decl(Decl { kind: Let, name: u!(\"yeah\"), value: Some(Value(Value \
+            { value: u!(\"3\"), kind: Int { base: Decimal, empty_int: false }, \
+            suffix_start: 1 })) }))"
+        ]];
+        expected_token.assert_eq(&format!("{token:?}",));
+    }
 
     let expected_errors = expect!["ErrorMulti { errors: [] }"];
     expected_errors.assert_eq(&format!("{:?}", reader.errors));

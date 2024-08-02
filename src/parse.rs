@@ -51,6 +51,7 @@ impl Reader {
         }
     }
 
+    #[must_use]
     #[inline]
     pub fn src(&self) -> &str {
         self.cursor.src()
@@ -115,7 +116,7 @@ impl Reader {
     fn parse_ident(&mut self, len: u32) -> Option<token::Token> {
         let id = self.current_range(len);
 
-        match dbg!(id) {
+        match id {
             "let" => self.parse_decl(token::DeclKind::Let).map(Into::into),
             "const" => self.parse_decl(token::DeclKind::Const).map(Into::into),
             s => self.parse_unknown_ident(s),

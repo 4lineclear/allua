@@ -44,7 +44,7 @@ pub const EOF_CHAR: char = '\0';
 impl Cursor {
     #[must_use]
     pub fn new(input: Rc<str>) -> Self {
-        Cursor {
+        Self {
             pos: 0,
             token_pos: 0,
             len_remaining: input.len(),

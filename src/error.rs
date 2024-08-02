@@ -22,6 +22,7 @@ impl From<Vec<ErrorOnce>> for ErrorMulti {
 }
 
 impl ErrorMulti {
+    #[allow(clippy::match_wildcard_for_single_variants)]
     pub fn push(&mut self, err: impl Into<ErrorOnce>) {
         use ErrorOnce::*;
         use LexicalError::*;
@@ -43,6 +44,7 @@ impl ErrorMulti {
     }
 
     // TODO: test string fns
+    #[must_use]
     #[cfg(any(test, debug_assertions))]
     pub fn to_test_string(&self) -> String {
         let mut out = String::new();
@@ -60,10 +62,11 @@ pub enum ErrorOnce {
 }
 
 impl ErrorOnce {
+    #[must_use]
     #[cfg(any(test, debug_assertions))]
     pub fn to_test_string(&self) -> String {
         match self {
-            ErrorOnce::Lexical(err) => err.to_test_string(),
+            Self::Lexical(err) => err.to_test_string(),
         }
     }
 }

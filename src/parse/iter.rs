@@ -17,6 +17,7 @@ impl RcChars {
     /// # SAFETY
     ///
     /// points to inner rc
+    #[must_use]
     pub fn new(rc: Rc<str>) -> Self {
         #[allow(unsafe_code)]
         let chars = unsafe { std::mem::transmute::<Chars, Chars<'static>>(rc.chars()) };
@@ -40,6 +41,7 @@ impl RcChars {
     /// Creates a new iterator with a reset position
     ///
     /// [`Clone`] it to retain position
+    #[must_use]
     pub fn clone_reset(&self) -> Self {
         Self::new(self.src.clone())
     }

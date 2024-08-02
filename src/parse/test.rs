@@ -71,23 +71,23 @@ fn let_chain() {
     expected_errors.assert_eq(&format!("{:?}", reader.errors));
 }
 
-// #[test]
-// fn let_and_fn() {
-//     let src = "\
-//         let yeah = 3;\n\
-//         print(yeah);
-//         ";
-//     let mut reader = Reader::from(&src);
-//     let token = reader.module("test");
-//     let expected_token = expect![["Module { name: u!(\"test\"), tokens: Span { \
-//         from: 1, to: 2, kind: PhantomData<allua::parse::token::Token> }, items: [Decl(\
-//         Decl { kind: Let, name: u!(\"yeah\"), value: Some(Value(Value { value: u!(\"3\"), \
-//         kind: Int { base: Decimal, empty_int: false }, suffix_start: 1 })) })] }"]];
-//     expected_token.assert_eq(&format!("{token:?}",));
-//
-//     let expected_errors = expect!["ErrorMulti { errors: [] }"];
-//     expected_errors.assert_eq(&format!("{:?}", reader.errors));
-// }
+#[test]
+fn let_and_fn() {
+    let src = "\
+        let yeah = 3;\n\
+        print(yeah);
+        ";
+    let mut reader = Reader::from(src);
+    let token = reader.module("test");
+    let expected_token = expect![["Module { name: u!(\"test\"), tokens: Span { \
+        from: 1, to: 2, kind: PhantomData<allua::parse::token::Token> }, items: [Decl(\
+        Decl { kind: Let, name: u!(\"yeah\"), value: Some(Value(Value { value: u!(\"3\"), \
+        kind: Int { base: Decimal, empty_int: false }, suffix_start: 1 })) })] }"]];
+    expected_token.assert_eq(&format!("{token:?}",));
+
+    let expected_errors = expect!["ErrorMulti { errors: [] }"];
+    expected_errors.assert_eq(&format!("{:?}", reader.errors));
+}
 
 #[test]
 fn multi_err() {

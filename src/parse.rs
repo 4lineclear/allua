@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use crate::{
     error::{ErrorMulti, ErrorOnce, LexicalError},
     lex::{self},
@@ -11,10 +13,9 @@ pub mod token;
 
 /// Reads tokens into a tokenstream
 #[derive(Debug)]
-pub struct Reader<'a> {
-    cursor: lex::Cursor<'a>,
+pub struct Reader {
+    cursor: lex::Cursor,
     errors: ErrorMulti,
-    src: &'a str,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -23,14 +24,36 @@ pub enum FnParseMode {
     Fn,
 }
 
-impl<'a> Reader<'a> {
+impl From<&str> for Reader {
+    fn from(value: &str) -> Self {
+        Self::new(value.into())
+    }
+}
+
+impl From<Rc<str>> for Reader {
+    fn from(value: Rc<str>) -> Self {
+        Self::new(value)
+    }
+}
+
+impl From<String> for Reader {
+    fn from(value: String) -> Self {
+        Self::new(value.into())
+    }
+}
+
+impl Reader {
     #[must_use]
-    pub fn new(src: &'a str) -> Self {
+    pub fn new(src: Rc<str>) -> Self {
         Self {
             cursor: lex::Cursor::new(src),
             errors: ErrorMulti::default(),
-            src,
         }
+    }
+
+    #[inline]
+    pub fn src(&self) -> &str {
+        self.cursor.src()
     }
 
     /// Parse a module
@@ -90,11 +113,9 @@ impl<'a> Reader<'a> {
     }
 
     fn parse_ident(&mut self, len: u32) -> Option<token::Token> {
-        let from = self.cursor.token_pos() as usize;
-        let to = from + len as usize;
-        let id = &self.src[from..to];
+        let id = self.current_range(len);
 
-        match id {
+        match dbg!(id) {
             "let" => self.parse_decl(token::DeclKind::Let).map(Into::into),
             "const" => self.parse_decl(token::DeclKind::Const).map(Into::into),
             s => self.parse_unknown_ident(s),
@@ -199,20 +220,19 @@ impl<'a> Reader<'a> {
 
     fn filter_block_comment(&mut self, token: lex::Token) -> bool {
         use lex::TokenKind::*;
+
         let pos = self.cursor.pos();
-        let BlockComment { terminated, .. } = token.kind else {
-            return false;
-        };
-        if terminated {
-            return false;
+        match token.kind {
+            BlockComment { terminated, .. } if !terminated => (),
+            _ => return false,
         }
-        self.push_err(LexicalError::UnclosedBlockComment(self.cursor.pos()));
+        self.push_err(LexicalError::UnclosedBlockComment(pos));
         true
     }
 
     fn current_char(&self) -> char {
         let pos = self.cursor.token_pos() as usize;
-        self.src[pos..]
+        self.src()[pos..]
             .chars()
             .next()
             .expect("couldn't get current char")
@@ -220,8 +240,9 @@ impl<'a> Reader<'a> {
 
     fn current_range(&self, len: u32) -> &str {
         let pos = self.cursor.token_pos() as usize;
-        &self.src[pos..pos + len as usize]
+        &self.src()[pos..pos + len as usize]
     }
+
     fn push_err(&mut self, err: impl Into<ErrorOnce>) {
         self.errors.push(err);
     }

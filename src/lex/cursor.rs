@@ -1,4 +1,6 @@
-use std::str::Chars;
+use std::rc::Rc;
+
+use crate::parse::iter::RcChars;
 
 use super::{token::TokenKind, Token};
 
@@ -7,28 +9,46 @@ use super::{token::TokenKind, Token};
 /// Next characters can be peeked via `first` method,
 /// and position can be shifted forward via `bump` method.
 #[derive(Debug)]
-pub struct Cursor<'a> {
+pub struct Cursor {
     /// the current bye position
     pos: u32,
     /// the position of the start of the previous token
     pub(super) token_pos: u32,
     len_remaining: usize,
     /// Iterator over chars. Slightly faster than a &str.
-    chars: Chars<'a>,
+    chars: RcChars,
     prev: char,
     prev_token: Token,
 }
 
+impl From<&str> for Cursor {
+    fn from(value: &str) -> Self {
+        Self::new(value.into())
+    }
+}
+
+impl From<Rc<str>> for Cursor {
+    fn from(value: Rc<str>) -> Self {
+        Self::new(value)
+    }
+}
+
+impl From<String> for Cursor {
+    fn from(value: String) -> Self {
+        Self::new(value.into())
+    }
+}
+
 pub const EOF_CHAR: char = '\0';
 
-impl<'a> Cursor<'a> {
+impl Cursor {
     #[must_use]
-    pub fn new(input: &'a str) -> Self {
+    pub fn new(input: Rc<str>) -> Self {
         Cursor {
             pos: 0,
             token_pos: 0,
             len_remaining: input.len(),
-            chars: input.chars(),
+            chars: RcChars::new(input),
             prev: EOF_CHAR,
             prev_token: Token::new(TokenKind::Eof, 0),
         }
@@ -45,9 +65,10 @@ impl<'a> Cursor<'a> {
         self.token_pos
     }
 
+    #[inline]
     #[must_use]
-    pub fn as_str(&self) -> &'a str {
-        self.chars.as_str()
+    pub fn src(&self) -> &str {
+        self.chars.src()
     }
 
     /// Returns the last eaten symbol (or `'\0'` in release builds).
@@ -70,33 +91,25 @@ impl<'a> Cursor<'a> {
     /// it should be checked with `is_eof` method.
     #[must_use]
     pub fn first(&self) -> char {
-        // `.next()` optimizes better than `.nth(0)`
-        self.chars.clone().next().unwrap_or(EOF_CHAR)
+        self.chars.first()
     }
 
     /// Peeks the second symbol from the input stream without consuming it.
     #[must_use]
     pub fn second(&self) -> char {
-        // `.next()` optimizes better than `.nth(1)`
-        let mut iter = self.chars.clone();
-        iter.next();
-        iter.next().unwrap_or(EOF_CHAR)
+        self.chars.second()
     }
 
     /// Peeks the third symbol from the input stream without consuming it.
     #[must_use]
     pub fn third(&self) -> char {
-        // `.next()` optimizes better than `.nth(1)`
-        let mut iter = self.chars.clone();
-        iter.next();
-        iter.next();
-        iter.next().unwrap_or(EOF_CHAR)
+        self.chars.third()
     }
 
     /// Checks if there is nothing more to consume.
     #[must_use]
     pub fn is_eof(&self) -> bool {
-        self.chars.as_str().is_empty()
+        self.chars.is_eof()
     }
 
     /// Returns amount of already consumed symbols.

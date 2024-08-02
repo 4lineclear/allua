@@ -6,7 +6,7 @@ const PUNCT_SRC: &str = "}()[],.@#~?:$=!<>-&|+*/^%";
 
 #[test]
 fn unexpected_punct() {
-    let mut reader = Reader::new(PUNCT_SRC);
+    let mut reader = Reader::from(PUNCT_SRC);
     let token = reader.next(crate::parse::FnParseMode::Module);
     assert_eq!(token, None);
 
@@ -17,7 +17,7 @@ fn unexpected_punct() {
 #[test]
 fn unclosed_block_comment() {
     let src = "/*/*/**/*/";
-    let mut reader = Reader::new(src);
+    let mut reader = Reader::from(src);
     let token = reader.next(crate::parse::FnParseMode::Module);
     assert_eq!(token, None);
 
@@ -28,7 +28,7 @@ fn unclosed_block_comment() {
 #[test]
 fn let_punct_fail() {
     let src = "let".to_owned() + PUNCT_SRC;
-    let mut reader = Reader::new(&src);
+    let mut reader = Reader::from(src);
     let token = reader.next(crate::parse::FnParseMode::Module);
     assert_eq!(token, None);
 
@@ -41,7 +41,7 @@ fn let_punct_fail() {
 #[test]
 fn let_module() {
     let src = "let yeah = 3";
-    let mut reader = Reader::new(src);
+    let mut reader = Reader::from(src);
     let token = reader.module("test");
     let expected_token = expect![["Module { name: u!(\"test\"), tokens: Span { \
         from: 1, to: 2, kind: PhantomData<allua::parse::token::Token> }, items: [Decl(\
@@ -56,7 +56,7 @@ fn let_module() {
 #[test]
 fn let_chain() {
     let src = "let yeah = 3;".repeat(10);
-    let mut reader = Reader::new(&src);
+    let mut reader = Reader::from(src);
     let token = reader.next(crate::parse::FnParseMode::Module);
     for _ in 0..10 {
         let expected_token = expect![[
@@ -77,7 +77,7 @@ fn let_chain() {
 //         let yeah = 3;\n\
 //         print(yeah);
 //         ";
-//     let mut reader = Reader::new(&src);
+//     let mut reader = Reader::from(&src);
 //     let token = reader.module("test");
 //     let expected_token = expect![["Module { name: u!(\"test\"), tokens: Span { \
 //         from: 1, to: 2, kind: PhantomData<allua::parse::token::Token> }, items: [Decl(\
@@ -94,7 +94,7 @@ fn multi_err() {
     let src = "\
         let aa = // \n\
         /**/ ^@@ # !/*/*/**/*/";
-    let mut reader = Reader::new(src);
+    let mut reader = Reader::from(src);
     let token = reader.next(crate::parse::FnParseMode::Module);
     let expected_token =
         expect![[r#"Some(Decl(Decl { kind: Let, name: u!("aa"), value: None }))"#]];

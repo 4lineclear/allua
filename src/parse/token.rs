@@ -8,6 +8,8 @@ use crate::{lex, util::Symbol};
 /// a module of code
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Module {
+    name: Symbol,
+    tokens: Span<Token>,
     /// First item must be a fn
     items: Vec<Token>,
 }
@@ -15,18 +17,25 @@ pub struct Module {
 impl Module {
     #[must_use]
     pub fn new(name: &str) -> Self {
-        let function = Fn {
-            name: name.into(),
-            params: Span::default(),
-            tokens: Span::default(),
-        };
         Self {
-            items: vec![function.into()],
+            name: name.into(),
+            tokens: Span {
+                from: 1,
+                to: 1,
+                kind: PhantomData,
+            },
+            items: Vec::new(),
         }
+    }
+
+    #[must_use]
+    pub const fn span(&self) -> Span<Token> {
+        self.tokens
     }
 
     pub fn push(&mut self, token: impl Into<Token>) {
         self.items.push(token.into());
+        self.tokens.to += 1;
     }
 }
 

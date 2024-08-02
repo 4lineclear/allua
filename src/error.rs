@@ -26,7 +26,7 @@ impl ErrorMulti {
         use ErrorOnce::*;
         use LexicalError::*;
         let err = err.into();
-        match err.clone() {
+        match err {
             Lexical(UnexpectedPunct(_, t)) => match self.errors.last_mut() {
                 Some(Lexical(UnexpectedPunct(_, f))) if t == *f + 1 => {
                     let f = *f;
@@ -41,12 +41,31 @@ impl ErrorMulti {
             _ => self.errors.push(err),
         }
     }
+
+    // TODO: test string fns
+    #[cfg(any(test, debug_assertions))]
+    pub fn to_test_string(&self) -> String {
+        let mut out = String::new();
+        for err in &self.errors {
+            out.push_str(&err.to_test_string());
+        }
+        out
+    }
 }
 
 /// a single parsing error
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ErrorOnce {
     Lexical(LexicalError),
+}
+
+impl ErrorOnce {
+    #[cfg(any(test, debug_assertions))]
+    pub fn to_test_string(&self) -> String {
+        match self {
+            ErrorOnce::Lexical(err) => err.to_test_string(),
+        }
+    }
 }
 
 impl From<LexicalError> for ErrorOnce {
@@ -72,6 +91,26 @@ pub enum LexicalError {
     UnexpectedLit(lex::LiteralKind, u32),
     UnexpectedComment(Option<lex::DocStyle>, u32),
     UnexpectedWhitespace(u32),
+}
+
+impl LexicalError {
+    #[cfg(any(test, debug_assertions))]
+    fn to_test_string(&self) -> String {
+        use LexicalError::*;
+        match self {
+            Unclosed(_) => todo!(),
+            UnclosedBlockComment(_) => todo!(),
+            InvalidChar(_) => todo!(),
+            NameNotFound(_) => todo!(),
+            UnexpectedEof(_) => todo!(),
+            UnexpectedIdent(_, _) => todo!(),
+            UnexpectedPunct(_, _) => todo!(),
+            UnexpectedRange(_, _) => todo!(),
+            UnexpectedLit(_, _) => todo!(),
+            UnexpectedComment(_, _) => todo!(),
+            UnexpectedWhitespace(_) => todo!(),
+        }
+    }
 }
 
 impl Display for ErrorOnce {

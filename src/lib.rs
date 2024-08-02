@@ -1,5 +1,5 @@
 //! a basic version of a lua-like langauge
-#![forbid(unsafe_code)]
+#![deny(unsafe_code)]
 #![deny(
     clippy::all,
     clippy::pedantic,

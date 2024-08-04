@@ -18,10 +18,7 @@ fn do_test(src: &str, expected_tokens: Expect, expected_errors: Expect) {
 fn unexpected_punct() {
     do_test(
         PUNCT_SRC,
-        expect![
-            "Module { name: u!(\"test\"), tokens: Span \
-            { from: 1, to: 1, kind: PhantomData<allua::parse::token::Token> }, items: [] }"
-        ],
+        expect!["Module { name: u!(\"test\"), items: [] }"],
         expect!["ErrorMulti { errors: [Lexical(UnexpectedRange(0, 24))] }"],
     );
 }
@@ -30,10 +27,7 @@ fn unexpected_punct() {
 fn unclosed_block_comment() {
     do_test(
         "/*/*/**/*/",
-        expect![
-            "Module { name: u!(\"test\"), tokens: Span \
-            { from: 1, to: 1, kind: PhantomData<allua::parse::token::Token> }, items: [] }"
-        ],
+        expect!["Module { name: u!(\"test\"), items: [] }"],
         expect!["ErrorMulti { errors: [Lexical(UnclosedBlockComment(0))] }"],
     );
 }
@@ -42,10 +36,7 @@ fn unclosed_block_comment() {
 fn let_punct_fail() {
     do_test(
         &("let ".to_owned() + PUNCT_SRC),
-        expect![
-            "Module { name: u!(\"test\"), tokens: Span \
-            { from: 1, to: 1, kind: PhantomData<allua::parse::token::Token> }, items: [] }"
-        ],
+        expect!["Module { name: u!(\"test\"), items: [] }"],
         expect![
             "ErrorMulti { errors: [Lexical(UnexpectedRange(4, 28)), Lexical(NameNotFound(29))] }"
         ],
@@ -56,8 +47,7 @@ fn let_punct_fail() {
 fn normal_let() {
     do_test(
         "let yeah = 3;",
-        expect![["Module { name: u!(\"test\"), tokens: Span { \
-        from: 1, to: 2, kind: PhantomData<allua::parse::token::Token> }, items: [Decl(\
+        expect![["Module { name: u!(\"test\"), items: [Decl(\
         Decl { kind: Let, name: u!(\"yeah\"), value: Some(Value(Value { value: u!(\"3\"), \
         kind: Int { base: Decimal, empty_int: false }, suffix_start: 1 })) })] }"]],
         expect!["ErrorMulti { errors: [] }"],
@@ -68,8 +58,7 @@ fn normal_let() {
 fn decl_with_type() {
     do_test(
         "string yeah = 3;",
-        expect![["Module { name: u!(\"test\"), tokens: Span { \
-        from: 1, to: 2, kind: PhantomData<allua::parse::token::Token> }, items: [Decl(\
+        expect![["Module { name: u!(\"test\"), items: [Decl(\
         Decl { kind: Type(u!(\"string\")), name: u!(\"yeah\"), value: Some(Value(Value { value: u!(\"3\"), \
         kind: Int { base: Decimal, empty_int: false }, suffix_start: 1 })) })] }"]],
         expect![["ErrorMulti { errors: [] }"]]
@@ -79,7 +68,7 @@ fn decl_with_type() {
 #[test]
 fn let_chain() {
     let src = "let yeah = 3;".repeat(10);
-    let mut reader = Reader::from(src);
+    let mut reader = Reader::new(&src);
     let token = reader.next(crate::parse::FnParseMode::Module);
     for _ in 0..10 {
         let expected_token = expect![[
@@ -101,8 +90,7 @@ fn let_and_fn() {
         let yeah = 3;\n\
         print(yeah);
         ",
-        expect![["Module { name: u!(\"test\"), tokens: Span { \
-        from: 1, to: 2, kind: PhantomData<allua::parse::token::Token> }, items: [Decl(\
+        expect![["Module { name: u!(\"test\"), items: [Decl(\
         Decl { kind: Let, name: u!(\"yeah\"), value: Some(Value(Value { value: u!(\"3\"), \
         kind: Int { base: Decimal, empty_int: false }, suffix_start: 1 })) })] }"]],
         expect!["ErrorMulti { errors: [] }"],
@@ -116,8 +104,7 @@ fn multi_err() {
         let aa = // \n\
         /**/ ^@@ # !/*/*/**/*/",
         expect![[
-            "Module { name: u!(\"test\"), tokens: Span { from: 1, to: 2, \
-            kind: PhantomData<allua::parse::token::Token> }, items: [Decl(Decl { kind: Let, \
+            "Module { name: u!(\"test\"), items: [Decl(Decl { kind: Let, \
             name: u!(\"aa\"), value: None })] }"
         ]],
         expect![

@@ -25,7 +25,7 @@ pub use token::{
 // TODO: read over, refine, and add clippy lints
 
 pub fn tokenize(input: &str) -> impl Iterator<Item = Token> + '_ {
-    Cursor::from(input)
+    Cursor::new(input)
 }
 
 #[must_use]
@@ -36,7 +36,7 @@ pub fn is_ident(s: &str) -> bool {
         .is_some_and(|start| is_id_start(start) && chars.all(is_id_continue))
 }
 
-impl Cursor {
+impl Cursor<'_> {
     /// Parses a token from the input string.
     pub fn advance_token(&mut self) -> Token {
         self.token_pos = self.pos();
@@ -581,7 +581,7 @@ impl Cursor {
     }
 }
 
-impl Iterator for Cursor {
+impl Iterator for Cursor<'_> {
     type Item = Token;
 
     fn next(&mut self) -> Option<Self::Item> {

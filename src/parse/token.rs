@@ -1,15 +1,13 @@
 // NOTE:
 // is run automatically when imported, unless `defer` is used
 
-use std::marker::PhantomData;
-
+use crate::span::TSpan;
 use crate::{lex, util::Symbol};
 
 /// a module of code
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Module {
     name: Symbol,
-    tokens: Span<Token>,
     /// First item must be a fn
     items: Vec<Token>,
 }
@@ -19,23 +17,17 @@ impl Module {
     pub fn new(name: &str) -> Self {
         Self {
             name: name.into(),
-            tokens: Span {
-                from: 1,
-                to: 1,
-                kind: PhantomData,
-            },
             items: Vec::new(),
         }
     }
 
     #[must_use]
-    pub const fn span(&self) -> Span<Token> {
-        self.tokens
+    pub fn len(&self) -> usize {
+        self.items.len()
     }
 
     pub fn push(&mut self, token: impl Into<Token>) {
         self.items.push(token.into());
-        self.tokens.to += 1;
     }
 }
 
@@ -52,8 +44,8 @@ impl Module {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Fn {
     name: Symbol,
-    params: Span<Decl>,
-    tokens: Span<Token>,
+    params: TSpan,
+    tokens: TSpan,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -135,45 +127,12 @@ impl Value {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Expr {
     /// <name>(<params>...)
-    FnCall(Symbol, Span<Expr>),
+    FnCall(Symbol, TSpan),
     Value(Value),
 }
 
 impl From<Value> for Expr {
     fn from(value: Value) -> Self {
         Self::Value(value)
-    }
-}
-
-/// A span of tokens
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Span<T> {
-    from: u32,
-    to: u32,
-    kind: PhantomData<T>,
-}
-
-impl<T> Default for Span<T> {
-    fn default() -> Self {
-        Self {
-            from: 0,
-            to: 0,
-            kind: PhantomData,
-        }
-    }
-}
-
-impl<T> Span<T> {
-    #[must_use]
-    pub fn push(self, token: T, set: &mut Vec<Token>) -> Self
-    where
-        T: Into<Token>,
-    {
-        set.push(token.into());
-        Self {
-            from: self.from,
-            to: self.to + 1,
-            kind: self.kind,
-        }
     }
 }

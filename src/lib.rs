@@ -28,6 +28,7 @@
 pub mod error;
 pub mod lex;
 pub mod parse;
+pub mod span;
 #[allow(clippy::unicode_not_nfc)]
 pub mod unicode;
 pub mod util;

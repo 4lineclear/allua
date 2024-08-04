@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use crate::{
     error::{ErrorMulti, ErrorOnce, LexicalError},
     lex::{self},
@@ -15,8 +13,8 @@ pub mod token;
 
 /// Reads tokens into a tokenstream
 #[derive(Debug)]
-pub struct Reader {
-    cursor: lex::Cursor,
+pub struct Reader<'a> {
+    cursor: lex::Cursor<'a>,
     errors: ErrorMulti,
 }
 
@@ -26,27 +24,15 @@ pub enum FnParseMode {
     Fn,
 }
 
-impl From<&str> for Reader {
-    fn from(value: &str) -> Self {
-        Self::new(value.into())
-    }
-}
-
-impl From<Rc<str>> for Reader {
-    fn from(value: Rc<str>) -> Self {
+impl<'a> From<&'a str> for Reader<'a> {
+    fn from(value: &'a str) -> Self {
         Self::new(value)
     }
 }
 
-impl From<String> for Reader {
-    fn from(value: String) -> Self {
-        Self::new(value.into())
-    }
-}
-
-impl Reader {
+impl<'a> Reader<'a> {
     #[must_use]
-    pub fn new(src: Rc<str>) -> Self {
+    pub fn new(src: &'a str) -> Self {
         Self {
             cursor: lex::Cursor::new(src),
             errors: ErrorMulti::default(),
@@ -152,7 +138,7 @@ impl Reader {
         } else {
             // TODO: create (parse_fn_call)
             // open paren
-            let _close_found = loop {
+            let close_found = loop {
                 let token = self.cursor.advance_token();
                 match token.kind {
                     _ if self.filter_block_comment(token) => (),
@@ -162,6 +148,9 @@ impl Reader {
                     _ => self.filter_all(token),
                 }
             };
+            if close_found {
+            } else {
+            }
 
             todo!()
         }

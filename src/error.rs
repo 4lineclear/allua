@@ -6,8 +6,10 @@ use crate::util::Symbol;
 
 // NOTE: types of errors:
 // - lexical    : encoding, definition, ident rules, token structure.
-// - syntacitcal: contextual, set path, not one of.
+// - syntactical: contextual, set path, not one of.
 // - semantic   : type errors, arg errors, nonexistent imports.
+
+// TODO: consider having three vecs for each error kind
 
 /// A set of parsing errors
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -94,6 +96,7 @@ pub enum LexicalError {
     UnexpectedLit(lex::LiteralKind, u32),
     UnexpectedComment(Option<lex::DocStyle>, u32),
     UnexpectedWhitespace(u32),
+    MissingSemi(u32, u32),
 }
 
 impl LexicalError {
@@ -112,6 +115,7 @@ impl LexicalError {
             UnexpectedLit(_, _) => todo!(),
             UnexpectedComment(_, _) => todo!(),
             UnexpectedWhitespace(_) => todo!(),
+            MissingSemi(_, _) => todo!(),
         }
     }
 }

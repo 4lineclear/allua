@@ -6,7 +6,9 @@ use crate::{
     util::Symbol,
 };
 
-pub mod iter;
+// TODO: add raw idents back in eventually.
+// TODO: simplify to_string
+
 #[cfg(test)]
 pub mod test;
 pub mod token;
@@ -89,7 +91,7 @@ impl Reader {
                     terminated,
                 } => {
                     if !terminated {
-                        self.push_err(LexicalError::UnclosedBlockComment(self.cursor.token_pos()));
+                        self.push_err(LexicalError::UnclosedBlockComment(self.token_pos()));
                     }
                     if let Some(style) = doc_style {
                         todo!("doc comments not added yet");
@@ -114,17 +116,70 @@ impl Reader {
     }
 
     fn parse_ident(&mut self, len: u32) -> Option<token::Token> {
-        let id = self.current_range(len);
-
-        match id {
+        match self.current_range(len) {
             "let" => self.parse_decl(token::DeclKind::Let).map(Into::into),
             "const" => self.parse_decl(token::DeclKind::Const).map(Into::into),
-            s => self.parse_unknown_ident(s),
+            _ => self.parse_unknown_ident(len),
         }
     }
 
-    fn parse_unknown_ident(&self, s: &str) -> Option<token::Token> {
-        todo!("{s}")
+    // TODO: create proper bytespan/cursorspan type
+    fn parse_unknown_ident(&mut self, len: u32) -> Option<token::Token> {
+        use lex::token::TokenKind::*;
+        let type_pos = self.token_pos();
+        let type_len = len;
+
+        // ident, should be a type decl
+        if let Either::B(len) = self.paren_or_ident()? {
+            let name_pos = self.token_pos();
+            let name_len = len;
+            let is_semi = self.eq_or_semi()?;
+
+            Some(
+                token::Decl::new(
+                    token::DeclKind::Type(self.range(type_pos, type_len).into()),
+                    self.range(name_pos, name_len).into(),
+                    if is_semi {
+                        None
+                    } else {
+                        let expr = self.parse_expr();
+                        self.parse_semi();
+                        expr
+                    },
+                )
+                .into(),
+            )
+        } else {
+            // TODO: create (parse_fn_call)
+            // open paren
+            let _close_found = loop {
+                let token = self.cursor.advance_token();
+                match token.kind {
+                    _ if self.filter_block_comment(token) => (),
+                    LineComment { .. } | BlockComment { .. } | Whitespace | Ident | Comma => (),
+                    CloseParen => break true,
+                    Eof => break false,
+                    _ => self.filter_all(token),
+                }
+            };
+
+            todo!()
+        }
+    }
+
+    fn paren_or_ident(&mut self) -> Option<Either<(), u32>> {
+        use lex::token::TokenKind::*;
+        loop {
+            let token = self.cursor.advance_token();
+            match token.kind {
+                _ if self.filter_block_comment(token) => (),
+                LineComment { .. } | BlockComment { .. } | Whitespace => (),
+                Ident => break Some(Either::B(token.len)),
+                OpenParen => break Some(Either::A(())),
+                Eof => break None,
+                _ => self.filter_all(token),
+            }
+        }
     }
 
     fn parse_decl(&mut self, kind: token::DeclKind) -> Option<token::Decl> {
@@ -137,15 +192,23 @@ impl Reader {
     }
 
     fn parse_let(&mut self) -> Option<(Symbol, Option<token::Expr>)> {
-        let Some(name) = self.parse_until_ident() else {
+        let Some((pos, len)) = self.parse_until_ident() else {
             self.push_err(LexicalError::NameNotFound(self.cursor.pos()));
             return None;
         };
 
-        let name = name.to_owned();
         let is_semi = self.eq_or_semi()?;
 
-        Some((name.into(), if is_semi { None } else { self.parse_expr() }))
+        Some((
+            self.range(pos, len).into(),
+            if is_semi {
+                None
+            } else {
+                let expr = self.parse_expr();
+                self.parse_semi();
+                expr
+            },
+        ))
     }
 
     pub fn eq_or_semi(&mut self) -> Option<bool> {
@@ -163,20 +226,21 @@ impl Reader {
         }
     }
 
-    fn parse_until_ident(&mut self) -> Option<&str> {
+    fn parse_until_ident(&mut self) -> Option<(u32, u32)> {
         use lex::token::TokenKind::*;
         loop {
             let token = self.cursor.advance_token();
             match token.kind {
                 _ if self.filter_block_comment(token) => (),
                 LineComment { .. } | BlockComment { .. } | Whitespace => (),
-                Ident => return Some(self.current_range(token.len)),
+                Ident => return Some((self.token_pos(), token.len)),
                 Eof => return None,
                 _ => self.filter_all(token),
             }
         }
     }
 
+    // TODO: add ident parsing
     fn parse_expr(&mut self) -> Option<token::Expr> {
         use lex::token::TokenKind::*;
         loop {
@@ -186,13 +250,31 @@ impl Reader {
                 LineComment { .. } | BlockComment { .. } | Whitespace => (),
                 Ident => todo!("only literals allowed for now"),
                 Literal { kind, suffix_start } => {
-                    return Some(token::Expr::Value(token::Value::new(
+                    break Some(token::Expr::Value(token::Value::new(
                         self.current_range(token.len).into(),
                         kind,
                         suffix_start,
                     )))
                 }
-                Eof => return None,
+                Eof => break None,
+                _ => self.filter_all(token),
+            }
+        }
+    }
+
+    fn parse_semi(&mut self) -> bool {
+        use lex::token::TokenKind::*;
+        loop {
+            let token = self.cursor.advance_token();
+            match token.kind {
+                _ if self.filter_block_comment(token) => (),
+                LineComment { .. } | BlockComment { .. } | Whitespace => (),
+                Eof => {
+                    self.errors
+                        .push(LexicalError::MissingSemi(self.cursor.pos(), token.len));
+                    break false;
+                }
+                Semi => break true,
                 _ => self.filter_all(token),
             }
         }
@@ -221,18 +303,17 @@ impl Reader {
 
     fn filter_block_comment(&mut self, token: lex::Token) -> bool {
         use lex::TokenKind::*;
-
-        let pos = self.cursor.pos();
         match token.kind {
-            BlockComment { terminated, .. } if !terminated => (),
-            _ => return false,
+            BlockComment { terminated, .. } if !terminated => {
+                self.push_err(LexicalError::UnclosedBlockComment(self.token_pos()));
+                true
+            }
+            _ => false,
         }
-        self.push_err(LexicalError::UnclosedBlockComment(pos));
-        true
     }
 
     fn current_char(&self) -> char {
-        let pos = self.cursor.token_pos() as usize;
+        let pos = self.token_pos() as usize;
         self.src()[pos..]
             .chars()
             .next()
@@ -240,11 +321,33 @@ impl Reader {
     }
 
     fn current_range(&self, len: u32) -> &str {
-        let pos = self.cursor.token_pos() as usize;
+        let pos = self.token_pos() as usize;
         &self.src()[pos..pos + len as usize]
+    }
+
+    fn range(&self, pos: u32, len: u32) -> &str {
+        let pos = pos as usize;
+        &self.src()[pos..pos + len as usize]
+    }
+
+    fn token_pos(&self) -> u32 {
+        self.cursor.token_pos()
     }
 
     fn push_err(&mut self, err: impl Into<ErrorOnce>) {
         self.errors.push(err);
     }
+}
+
+#[derive(Debug)]
+pub enum Either<A, B> {
+    A(A),
+    B(B),
+}
+
+#[derive(Debug)]
+pub enum Either3<A, B, C> {
+    A(A),
+    B(B),
+    C(C),
 }

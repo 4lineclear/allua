@@ -11,6 +11,3 @@ unicode-properties = "0.1.1"
 
 [dev-dependencies]
 expect-test = "1.5.0"
-
-# [build-dependencies]
-# string_cache_codegen = "0.5"

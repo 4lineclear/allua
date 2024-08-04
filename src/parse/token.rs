@@ -1,6 +1,3 @@
-// NOTE:
-// is run automatically when imported, unless `defer` is used
-
 use crate::span::TSpan;
 use crate::{lex, util::Symbol};
 

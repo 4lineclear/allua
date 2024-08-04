@@ -5,7 +5,7 @@ use super::Reader;
 const PUNCT_SRC: &str = "}()[],.@#~?:$=!<>-&|+*/^%";
 
 fn do_test(src: &str, expected_tokens: Expect, expected_errors: Expect) {
-    let mut reader = Reader::from(src);
+    let mut reader = Reader::new(src);
 
     let token = reader.module("test");
     let errors = reader.errors;

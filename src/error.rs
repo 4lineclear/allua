@@ -10,6 +10,7 @@ use crate::util::Symbol;
 // - semantic   : type errors, arg errors, nonexistent imports.
 
 // TODO: consider having three vecs for each error kind
+// TODO: move some lex error handling to crate::lex
 
 /// A set of parsing errors
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -81,6 +82,7 @@ impl From<LexicalError> for ErrorOnce {
 
 // TODO: create extendable errors
 // ie invalid punct could be a range instead of a char
+// TODO: consider generalised errors
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LexicalError {
     /// Some type of unclosed block

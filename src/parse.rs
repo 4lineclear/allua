@@ -16,6 +16,7 @@ pub mod token;
 pub struct Reader<'a> {
     cursor: lex::Cursor<'a>,
     errors: ErrorMulti,
+    buf: Vec<token::Token>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -24,18 +25,13 @@ pub enum FnParseMode {
     Fn,
 }
 
-impl<'a> From<&'a str> for Reader<'a> {
-    fn from(value: &'a str) -> Self {
-        Self::new(value)
-    }
-}
-
 impl<'a> Reader<'a> {
     #[must_use]
     pub fn new(src: &'a str) -> Self {
         Self {
             cursor: lex::Cursor::new(src),
             errors: ErrorMulti::default(),
+            buf: Vec::new(),
         }
     }
 
@@ -48,17 +44,26 @@ impl<'a> Reader<'a> {
     /// Parse a module
     pub fn module(&mut self, name: &str) -> token::Module {
         let mut md = token::Module::new(name);
-        while let Some(token) = self.next(FnParseMode::Module) {
+        while let Some(token) = self.next_inner(FnParseMode::Module) {
             md.push(token);
         }
         md
     }
 
+    pub fn next(&mut self, mode: FnParseMode) -> Option<token::Token> {
+        let token = self.next_inner(mode);
+        if let Some(token) = token {
+            self.buf.push(token);
+        }
+        token
+    }
+
     /// The top level parsing function; parses the next token from within a fn
     ///
     /// Parses both functions and modules, catching lexical errors
+    #[inline]
     #[allow(unused)]
-    pub fn next(&mut self, mode: FnParseMode) -> Option<token::Token> {
+    pub fn next_inner(&mut self, mode: FnParseMode) -> Option<token::Token> {
         use lex::token::TokenKind::*;
 
         loop {
@@ -66,6 +71,7 @@ impl<'a> Reader<'a> {
             let len = token.len;
             let kind = token.kind;
             match kind {
+                _ if self.filter_block_comment(token) => (),
                 // (?doc)comments. skip normal comments
                 LineComment { doc_style } => {
                     if let Some(style) = doc_style {
@@ -76,9 +82,6 @@ impl<'a> Reader<'a> {
                     doc_style,
                     terminated,
                 } => {
-                    if !terminated {
-                        self.push_err(LexicalError::UnclosedBlockComment(self.token_pos()));
-                    }
                     if let Some(style) = doc_style {
                         todo!("doc comments not added yet");
                     }
@@ -111,7 +114,6 @@ impl<'a> Reader<'a> {
 
     // TODO: create proper bytespan/cursorspan type
     fn parse_unknown_ident(&mut self, len: u32) -> Option<token::Token> {
-        use lex::token::TokenKind::*;
         let type_pos = self.token_pos();
         let type_len = len;
 
@@ -136,24 +138,30 @@ impl<'a> Reader<'a> {
                 .into(),
             )
         } else {
-            // TODO: create (parse_fn_call)
-            // open paren
-            let close_found = loop {
-                let token = self.cursor.advance_token();
-                match token.kind {
-                    _ if self.filter_block_comment(token) => (),
-                    LineComment { .. } | BlockComment { .. } | Whitespace | Ident | Comma => (),
-                    CloseParen => break true,
-                    Eof => break false,
-                    _ => self.filter_all(token),
-                }
-            };
-            if close_found {
-            } else {
-            }
-
+            self.parse_fn();
             todo!()
         }
+    }
+
+    fn parse_fn(&mut self) -> Option<()> {
+        // debug_assert_eq!(self.current_char(), '(');
+        use lex::token::TokenKind::*;
+        let close_found = loop {
+            let token = self.cursor.advance_token();
+            match token.kind {
+                _ if self.filter_block_comment(token) => (),
+                LineComment { .. } | BlockComment { .. } | Whitespace | Ident | Comma => (),
+                CloseParen => break true,
+                Eof => break false,
+                _ => self.filter_all(token),
+            }
+        };
+
+        if close_found {
+        } else {
+        }
+
+        todo!()
     }
 
     fn paren_or_ident(&mut self) -> Option<Either<(), u32>> {

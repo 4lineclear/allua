@@ -22,8 +22,6 @@ pub use token::{
     TokenKind::{self, *},
 };
 
-// TODO: read over, refine, and add clippy lints
-
 pub fn tokenize(input: &str) -> impl Iterator<Item = Token> + '_ {
     Cursor::new(input)
 }

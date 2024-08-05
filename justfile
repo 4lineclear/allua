@@ -2,4 +2,4 @@ md:
     mdflc ./notes/
 
 todo:
-    rg "NOTE|todo|TODO" ./src/
+    rg "todo|TODO|HACK|WARN|PERF|NOTE|TEST" ./src/

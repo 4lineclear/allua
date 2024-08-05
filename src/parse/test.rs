@@ -5,10 +5,7 @@ use super::Reader;
 const PUNCT_SRC: &str = "}()[],.@#~?:$=!<>-&|+*/^%";
 
 fn do_test(src: &str, expected_tokens: Expect, expected_errors: Expect) {
-    let mut reader = Reader::new(src);
-
-    let token = reader.module("test");
-    let errors = reader.errors;
+    let (token, errors) = Reader::new(src).module("test");
 
     expected_tokens.assert_eq(&format!("{token:?}",));
     expected_errors.assert_eq(&format!("{errors:?}",));
@@ -19,7 +16,7 @@ fn unexpected_punct() {
     do_test(
         PUNCT_SRC,
         expect!["Module { name: u!(\"test\"), items: [] }"],
-        expect!["ErrorMulti { errors: [Lexical(UnexpectedRange(0, 24))] }"],
+        expect!["ErrorMulti { errors: [Lexical(Unexpected(0, 25))] }"],
     );
 }
 
@@ -37,14 +34,12 @@ fn let_punct_fail() {
     do_test(
         &("let ".to_owned() + PUNCT_SRC),
         expect!["Module { name: u!(\"test\"), items: [] }"],
-        expect![
-            "ErrorMulti { errors: [Lexical(UnexpectedRange(4, 28)), Lexical(NameNotFound(29))] }"
-        ],
+        expect!["ErrorMulti { errors: [Lexical(Unexpected(4, 29)), Lexical(NameNotFound(29))] }"],
     );
 }
 
 #[test]
-fn normal_let() {
+fn decl() {
     do_test(
         "let yeah = 3;",
         expect![["Module { name: u!(\"test\"), items: [Decl(\
@@ -52,6 +47,13 @@ fn normal_let() {
         kind: Int { base: Decimal, empty_int: false }, suffix_start: 1 })) })] }"]],
         expect!["ErrorMulti { errors: [] }"],
     );
+    do_test(
+        "const yeah = 3;",
+        expect![["Module { name: u!(\"test\"), items: [Decl(\
+        Decl { kind: Const, name: u!(\"yeah\"), value: Some(Value(Value { value: u!(\"3\"), \
+        kind: Int { base: Decimal, empty_int: false }, suffix_start: 1 })) })] }"]],
+        expect!["ErrorMulti { errors: [] }"],
+    )
 }
 
 #[test]
@@ -63,13 +65,20 @@ fn decl_with_type() {
         kind: Int { base: Decimal, empty_int: false }, suffix_start: 1 })) })] }"]],
         expect![["ErrorMulti { errors: [] }"]]
     );
+    do_test(
+        "const string yeah = 3;",
+        expect![["Module { name: u!(\"test\"), items: [Decl(\
+        Decl { kind: Const, name: u!(\"yeah\"), value: Some(Value(Value { value: u!(\"3\"), \
+        kind: Int { base: Decimal, empty_int: false }, suffix_start: 1 })) })] }"]],
+        expect!["ErrorMulti { errors: [] }"],
+    )
 }
 
 #[test]
 fn let_chain() {
     let src = "let yeah = 3;".repeat(10);
     let mut reader = Reader::new(&src);
-    let token = reader.next(crate::parse::FnParseMode::Module);
+    let token = reader.next(crate::parse::ParseMode::Module);
     for _ in 0..10 {
         let expected_token = expect![[
             "Some(Decl(Decl { kind: Let, name: u!(\"yeah\"), value: Some(Value(Value \
@@ -88,11 +97,12 @@ fn let_and_fn() {
     do_test(
         "\
         let yeah = 3;\n\
-        print(yeah);
+        print(yeah);\
         ",
         expect![["Module { name: u!(\"test\"), items: [Decl(\
         Decl { kind: Let, name: u!(\"yeah\"), value: Some(Value(Value { value: u!(\"3\"), \
-        kind: Int { base: Decimal, empty_int: false }, suffix_start: 1 })) })] }"]],
+        kind: Int { base: Decimal, empty_int: false }, suffix_start: 1 })) }), \
+         Expr(FnCall(u!(\"print\"), TSpan { from: 1, to: 1 }))] }"]],
         expect!["ErrorMulti { errors: [] }"],
     );
 }
@@ -109,9 +119,11 @@ fn multi_err() {
         ]],
         expect![
             "ErrorMulti { errors: [\
-        Lexical(UnexpectedRange(18, 20)), Lexical(UnexpectedPunct('#', 22)), \
-        Lexical(UnexpectedPunct('!', 24)), Lexical(UnclosedBlockComment(25)), \
-        Lexical(MissingSemi(35, 0))] }"
+            Lexical(Unexpected(18, 21)), \
+            Lexical(Unexpected(22, 23)), \
+            Lexical(Unexpected(24, 25)), \
+            Lexical(UnclosedBlockComment(25)), \
+            Lexical(MissingSemi(35, 0))] }"
         ],
     );
 }

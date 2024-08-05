@@ -2,6 +2,8 @@ use std::str::Chars;
 
 use super::{token::TokenKind, Token};
 
+// PERF: Chars is slightly faster than &str
+
 /// Peekable iterator over a char sequence.
 ///
 /// Next characters can be peeked via `first` method,
@@ -10,7 +12,6 @@ use super::{token::TokenKind, Token};
 pub struct Cursor<'a> {
     pub(super) token_pos: u32,
     len_remaining: usize,
-    /// Iterator over chars. Slightly faster than a &str.
     src: &'a str,
     chars: Chars<'a>,
     prev: char,
@@ -79,14 +80,14 @@ impl Cursor<'_> {
     /// it should be checked with `is_eof` method.
     #[must_use]
     pub fn first(&self) -> char {
-        // `.next()` optimizes better than `.nth(0)`
+        // PERF: `.next()` optimizes better than `.nth(0)`
         self.chars.clone().next().unwrap_or(EOF_CHAR)
     }
 
     /// Peeks the second symbol from the input stream without consuming it.
     #[must_use]
     pub fn second(&self) -> char {
-        // `.next()` optimizes better than `.nth(1)`
+        // PERF: `.next()` optimizes better than `.nth(1)`
         let mut iter = self.chars.clone();
         iter.next();
         iter.next().unwrap_or(EOF_CHAR)
@@ -95,7 +96,7 @@ impl Cursor<'_> {
     /// Peeks the third symbol from the input stream without consuming it.
     #[must_use]
     pub fn third(&self) -> char {
-        // `.next()` optimizes better than `.nth(1)`
+        // PERF: `.next()` optimizes better than `.nth(2)`
         let mut iter = self.chars.clone();
         iter.next();
         iter.next();
@@ -124,18 +125,13 @@ impl Cursor<'_> {
     #[allow(clippy::cast_possible_truncation)]
     pub fn bump(&mut self) -> Option<char> {
         let c = self.chars.next()?;
-
-        #[cfg(debug_assertions)]
-        {
-            self.prev = c;
-        }
-
+        self.prev = c;
         Some(c)
     }
 
     /// Eats symbols while predicate returns true or until the end of file is reached.
     pub fn eat_while(&mut self, mut predicate: impl FnMut(char) -> bool) {
-        // It was tried making optimized version of this for eg. line comments, but
+        // PERF: It was tried making optimized version of this for eg. line comments, but
         // LLVM can inline all of this and compile it down to fast iteration over bytes.
         while predicate(self.first()) && !self.is_eof() {
             self.bump();

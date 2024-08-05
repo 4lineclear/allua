@@ -11,10 +11,10 @@ pub struct Module {
 
 impl Module {
     #[must_use]
-    pub fn new(name: &str) -> Self {
+    pub fn new(name: &str, items: Vec<Token>) -> Self {
         Self {
             name: name.into(),
-            items: Vec::new(),
+            items,
         }
     }
 
@@ -52,6 +52,8 @@ pub enum Token {
     Expr(Expr),
     Value(Value),
     Import(Import),
+    /// A dummy token. should never appear
+    Dummy,
 }
 
 macro_rules! token_from {
@@ -102,6 +104,23 @@ pub struct Import {
     defer: bool,
 }
 
+/// <expr>
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Expr {
+    /// <name>(<params>...)
+    FnCall(Symbol, TSpan),
+    /// <name>
+    Var(Symbol),
+    /// constant value
+    Value(Value),
+}
+
+impl From<Value> for Expr {
+    fn from(value: Value) -> Self {
+        Self::Value(value)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Value {
     value: Symbol,
@@ -117,19 +136,5 @@ impl Value {
             kind,
             suffix_start,
         }
-    }
-}
-
-/// <expr>
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Expr {
-    /// <name>(<params>...)
-    FnCall(Symbol, TSpan),
-    Value(Value),
-}
-
-impl From<Value> for Expr {
-    fn from(value: Value) -> Self {
-        Self::Value(value)
     }
 }

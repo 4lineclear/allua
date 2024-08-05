@@ -1,9 +1,6 @@
 use std::error::Error as StdError;
 use std::fmt::Display;
 
-use crate::lex;
-use crate::util::Symbol;
-
 // NOTE: types of errors:
 // - lexical    : encoding, definition, ident rules, token structure.
 // - syntactical: contextual, set path, not one of.
@@ -16,6 +13,8 @@ use crate::util::Symbol;
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ErrorMulti {
     errors: Vec<ErrorOnce>,
+    // TODO: replace the above with the below
+    // lex: Vec<Lexical>
 }
 
 impl From<Vec<ErrorOnce>> for ErrorMulti {
@@ -31,14 +30,9 @@ impl ErrorMulti {
         use LexicalError::*;
         let err = err.into();
         match err {
-            Lexical(UnexpectedPunct(_, t)) => match self.errors.last_mut() {
-                Some(Lexical(UnexpectedPunct(_, f))) if t == *f + 1 => {
-                    let f = *f;
-                    self.errors.pop();
-                    self.errors.push(UnexpectedRange(f, t).into());
-                }
-                Some(Lexical(UnexpectedRange(_, t1))) if t == *t1 + 1 => {
-                    *t1 += 1;
+            Lexical(Unexpected(new_start, new_end)) => match self.errors.last_mut() {
+                Some(Lexical(Unexpected(_, old_end))) if new_start == *old_end => {
+                    *old_end = new_end;
                 }
                 _ => self.errors.push(err),
             },
@@ -90,15 +84,11 @@ pub enum LexicalError {
     UnclosedBlockComment(u32),
     InvalidChar(u32),
     NameNotFound(u32),
-    UnexpectedEof(u32),
-    UnexpectedIdent(Symbol, u32),
-    UnexpectedPunct(char, u32),
-    /// should (?maybe) be constructed directly
-    UnexpectedRange(u32, u32),
-    UnexpectedLit(lex::LiteralKind, u32),
-    UnexpectedComment(Option<lex::DocStyle>, u32),
-    UnexpectedWhitespace(u32),
-    MissingSemi(u32, u32),
+    /// (start inclusive, end exclusive)
+    Unexpected(u32, u32),
+    /// Expected a token, eof found, should be extended in the future
+    Eof(u32),
+    MissingSemi(u32),
 }
 
 impl LexicalError {
@@ -110,14 +100,9 @@ impl LexicalError {
             UnclosedBlockComment(_) => todo!(),
             InvalidChar(_) => todo!(),
             NameNotFound(_) => todo!(),
-            UnexpectedEof(_) => todo!(),
-            UnexpectedIdent(_, _) => todo!(),
-            UnexpectedPunct(_, _) => todo!(),
-            UnexpectedRange(_, _) => todo!(),
-            UnexpectedLit(_, _) => todo!(),
-            UnexpectedComment(_, _) => todo!(),
-            UnexpectedWhitespace(_) => todo!(),
-            MissingSemi(_, _) => todo!(),
+            Unexpected(_, _) => todo!(),
+            Eof(_) => todo!(),
+            MissingSemi(_) => todo!(),
         }
     }
 }

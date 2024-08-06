@@ -153,20 +153,14 @@ impl<'a> Reader<'a> {
         if check_paren && !self.until_open_paren() {
             return None;
         }
-        let from = self.tokens.len() as u32;
-
+        let from = self.tokens.len();
         self.tokens.push(token::Token::Dummy);
 
-        let mut expr = None;
-
-        loop {
+        let expr = loop {
             let next = match self.parse_params() {
                 // close paren
-                (true, None) => break,
-                (true, Some(last)) => {
-                    expr = Some(last);
-                    break;
-                }
+                (true, None) => break None,
+                (true, Some(last)) => break Some(last),
                 // expr
                 (false, Some(expr)) => expr,
                 // eof
@@ -177,12 +171,12 @@ impl<'a> Reader<'a> {
                 }
             };
             self.tokens.push(next.into());
-            expr = Some(next);
-        }
+        };
 
-        let to = self.tokens.len() as u32;
-
-        self.tokens[from as usize] =
+        let set_idx = from;
+        let to = self.tokens.len() as u32 + expr.is_some() as u32;
+        let from = from as u32 + 1;
+        self.tokens[set_idx] =
             token::Expr::FnCall(self.range(span).into(), TSpan { from, to }).into();
 
         expr
@@ -200,16 +194,7 @@ impl<'a> Reader<'a> {
                 _ if self.err_block_comment(token) => (),
                 LineComment { .. } | BlockComment { .. } | Whitespace | Comma => (),
                 CloseParen => break (true, None),
-                Ident => match self.next_param_kind() {
-                    Either4::A(()) => break (false, self.parse_fn_call(span, false)),
-                    Either4::B(()) => {
-                        break (true, Some(token::Expr::Var(self.range(span).into())))
-                    }
-                    Either4::C(()) => {
-                        break (false, Some(token::Expr::Var(self.range(span).into())))
-                    }
-                    Either4::D(()) => break (false, None),
-                },
+                Ident => break self.next_param_kind(span),
                 Literal { kind, suffix_start } => {
                     let expr =
                         Some(token::Value::new(self.range(span).into(), kind, suffix_start).into());
@@ -221,18 +206,17 @@ impl<'a> Reader<'a> {
         }
     }
 
-    /// `A` = `Open`, `B` = `Close`, `C` = `Comma`, `D` = `Eof`
-    fn next_param_kind(&mut self) -> Either4<(), (), (), ()> {
+    fn next_param_kind(&mut self, span: BSpan) -> (bool, Option<token::Expr>) {
         use lex::token::TokenKind::*;
         loop {
             let token = self.cursor.advance_token();
             match token.kind {
                 _ if self.err_block_comment(token) => (),
                 LineComment { .. } | BlockComment { .. } | Whitespace => (),
-                OpenParen => break Either4::A(()),
-                CloseParen => break Either4::B(()),
-                Comma => break Either4::C(()),
-                Eof => break Either4::D(()),
+                OpenParen => break (false, self.parse_fn_call(span, false)),
+                CloseParen => break (true, Some(token::Expr::Var(self.range(span).into()))),
+                Comma => break (false, Some(token::Expr::Var(self.range(span).into()))),
+                Eof => break (false, None),
                 _ => self.err_unexpected(token),
             }
         }

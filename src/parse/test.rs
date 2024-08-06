@@ -18,7 +18,7 @@ fn do_test(src: &str, expected_tokens: Expect, expected_errors: Expect) {
 fn unexpected_punct() {
     do_test(
         PUNCT_SRC,
-        expect!["Module { name: u!(\"test\"), items: [] }"],
+        expect![""],
         expect![[r#"unexpected 0,25 = "}()[],.@#~?:$=!<>-&|+*/^%""#]],
     );
 }
@@ -27,7 +27,7 @@ fn unexpected_punct() {
 fn unclosed_block_comment() {
     do_test(
         "/*/*/**/*/",
-        expect!["Module { name: u!(\"test\"), items: [] }"],
+        expect![""],
         expect![[r#"unclosed 0,10 = "/*/*/**/*/""#]],
     );
 }
@@ -36,7 +36,7 @@ fn unclosed_block_comment() {
 fn let_punct_fail() {
     do_test(
         &("let ".to_owned() + PUNCT_SRC),
-        expect!["Module { name: u!(\"test\"), items: [] }"],
+        expect![""],
         expect![[r#"
             unexpected 4,29 = "}()[],.@#~?:$=!<>-&|+*/^%"
             eof 29"#]],
@@ -49,10 +49,9 @@ fn multi_err() {
         "\
         let aa = // \n\
         /**/ ^@@ # !/*/*/**/*/",
-        expect![[
-            "Module { name: u!(\"test\"), items: [Decl(Decl { kind: Let, \
-            type_name: None, name: u!(\"aa\"), value: None })] }"
-        ]],
+        expect![[r#"
+            let aa;
+        "#]],
         expect![[r##"
             unexpected 18,21 = "^@@"
             unexpected 22,23 = "#"
@@ -66,18 +65,16 @@ fn multi_err() {
 fn decl() {
     do_test(
         "let yeah = 3;",
-        expect![["Module { name: u!(\"test\"), items: [Decl(\
-        Decl { kind: Let, type_name: None, name: u!(\"yeah\"), value: Some(Value(Value \
-        { value: u!(\"3\"), kind: Int { base: Decimal, empty_int: false }, suffix_start: \
-        1 })) })] }"]],
+        expect![[r#"
+            let yeah = 3;
+        "#]],
         expect![""],
     );
     do_test(
         "const yeah = 3;",
-        expect![["Module { name: u!(\"test\"), items: [Decl(\
-        Decl { kind: Const, type_name: None, name: u!(\"yeah\"), value: Some(Value(Value { \
-        value: u!(\"3\"), kind: Int { base: Decimal, empty_int: false }, suffix_start: \
-        1 })) })] }"]],
+        expect![[r#"
+            const yeah = 3;
+        "#]],
         expect![""],
     )
 }
@@ -86,16 +83,16 @@ fn decl() {
 fn decl_with_type() {
     do_test(
         "let string yeah = 3;",
-        expect![["Module { name: u!(\"test\"), items: [Decl(\
-        Decl { kind: Let, type_name: Some(u!(\"string\")), name: u!(\"yeah\"), value: Some(Value(Value { value: u!(\"3\"), \
-        kind: Int { base: Decimal, empty_int: false }, suffix_start: 1 })) })] }"]],
-        expect![""]
+        expect![[r#"
+            let string yeah = 3;
+        "#]],
+        expect![""],
     );
     do_test(
         "const string yeah = 3;",
-        expect![["Module { name: u!(\"test\"), items: [Decl(\
-        Decl { kind: Const, type_name: Some(u!(\"string\")), name: u!(\"yeah\"), value: Some(Value(Value { value: u!(\"3\"), \
-        kind: Int { base: Decimal, empty_int: false }, suffix_start: 1 })) })] }"]],
+        expect![[r#"
+            const string yeah = 3;
+        "#]],
         expect![""],
     )
 }
@@ -126,10 +123,10 @@ fn let_and_fn() {
         let yeah = 3;\n\
         print(yeah);\
         ",
-        expect![["Module { name: u!(\"test\"), items: [Decl(\
-        Decl { kind: Let, type_name: None, name: u!(\"yeah\"), value: Some(Value(Value { value: u!(\"3\"), \
-        kind: Int { base: Decimal, empty_int: false }, suffix_start: 1 })) }), \
-        Expr(FnCall(u!(\"print\"), TSpan { from: 1, to: 2 })), Expr(Var(u!(\"yeah\")))] }"]],
+        expect![[r#"
+            let yeah = 3;
+            print(yeah);
+        "#]],
         expect![""],
     );
 }
@@ -139,10 +136,9 @@ fn fn_call_str() {
     // FIX: "yeah" is added twice
     do_test(
         r#"print("yeah");"#,
-        expect![["Module { name: u!(\"test\"), items: [Expr(FnCall(u!(\"print\"), \
-            TSpan { from: 0, to: 2 })), Expr(Value(Value { value: u!(\"\\\"yeah\\\"\"), kind: Str \
-            { terminated: true }, suffix_start: 6 })), Expr(Value(Value { value: u!(\"\\\"yeah\\\"\"), \
-            kind: Str { terminated: true }, suffix_start: 6 }))] }"]],
+        expect![[r#"
+            print("yeah");
+        "#]],
         expect![""],
     );
 }

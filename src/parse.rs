@@ -1,9 +1,3 @@
-use crate::{
-    error::{ErrorMulti, ErrorOnce, LexicalError},
-    lex::{self},
-    span::{BSpan, TSpan},
-};
-
 // TODO: add raw idents back in eventually.
 // TODO: simplify to_string
 // TODO: create pattern-composer macro
@@ -13,6 +7,12 @@ use crate::{
 // TODO: consider rewriting the below.
 // TODO: move to use BSpan
 // TODO: consider removing normal var bindings, replacing them with <let> <type> <name> (? = <value>);
+#![allow(clippy::cast_possible_truncation)]
+use crate::{
+    error::{ErrorMulti, ErrorOnce, LexicalError},
+    lex::{self},
+    span::{BSpan, TSpan},
+};
 
 #[cfg(test)]
 pub mod test;
@@ -42,13 +42,8 @@ impl<'a> Reader<'a> {
         }
     }
 
-    #[must_use]
-    #[inline]
-    pub fn src(&self) -> &str {
-        self.cursor.src()
-    }
-
     /// Parse a module
+    #[must_use]
     pub fn module(mut self, name: &str) -> (token::Module, ErrorMulti) {
         while let Some(token) = self.next(ParseMode::Module) {
             self.tokens.push(token);
@@ -150,7 +145,7 @@ impl<'a> Reader<'a> {
             }
         };
 
-        Some(token::Decl::new(kind, type_name, name.into(), value).into())
+        Some(token::Decl::new(kind, type_name, name.into(), value))
     }
 
     /// (..)
@@ -367,6 +362,12 @@ impl<'a> Reader<'a> {
         }
     }
 
+    #[must_use]
+    #[inline]
+    pub const fn src(&self) -> &str {
+        self.cursor.src()
+    }
+
     #[allow(dead_code)]
     fn current_char(&self) -> char {
         let pos = self.token_pos() as usize;
@@ -384,12 +385,11 @@ impl<'a> Reader<'a> {
         &self.src()[span.from as usize..span.to as usize]
     }
 
-    #[inline]
-    fn token_pos(&self) -> u32 {
+    const fn token_pos(&self) -> u32 {
         self.cursor.token_pos()
     }
 
-    fn token_span(&self, len: u32) -> BSpan {
+    const fn token_span(&self, len: u32) -> BSpan {
         BSpan::new(self.token_pos(), self.token_pos() + len)
     }
 

@@ -23,6 +23,11 @@ impl Module {
         self.items.len()
     }
 
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn push(&mut self, token: impl Into<Token>) {
         self.items.push(token.into());
     }

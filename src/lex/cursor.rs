@@ -44,6 +44,7 @@ impl Cursor<'_> {
     }
 
     #[must_use]
+    #[allow(clippy::cast_possible_truncation)]
     pub fn pos(&self) -> u32 {
         (self.src.len() - self.chars.as_str().len()) as u32
     }
@@ -56,8 +57,8 @@ impl Cursor<'_> {
 
     #[inline]
     #[must_use]
-    pub fn src(&self) -> &str {
-        &self.src
+    pub const fn src(&self) -> &str {
+        self.src
     }
 
     /// Returns the last eaten symbol (or `'\0'` in release builds).

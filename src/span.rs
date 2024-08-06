@@ -8,10 +8,12 @@ pub struct BSpan {
 }
 
 impl BSpan {
-    pub fn new(from: u32, to: u32) -> Self {
+    #[must_use]
+    pub const fn new(from: u32, to: u32) -> Self {
         Self { from, to }
     }
-    pub fn from_len(from: u32, len: u32) -> Self {
+    #[must_use]
+    pub const fn from_len(from: u32, len: u32) -> Self {
         Self::new(from, from + len)
     }
 }
@@ -24,13 +26,15 @@ pub struct TSpan {
 }
 
 impl BSpan {
-    pub fn is_empty(self) -> bool {
+    #[must_use]
+    pub const fn is_empty(self) -> bool {
         self.from == self.to
     }
 }
 
 impl TSpan {
-    pub fn is_empty(self) -> bool {
+    #[must_use]
+    pub const fn is_empty(self) -> bool {
         self.from == self.to
     }
 }

@@ -19,7 +19,7 @@ fn unexpected_punct() {
     do_test(
         PUNCT_SRC,
         expect!["Module { name: u!(\"test\"), items: [] }"],
-        expect!["ErrorMulti { errors: [Lexical(Unexpected(0, 25))] }"],
+        expect![[r#"unexpected 0,25 = "}()[],.@#~?:$=!<>-&|+*/^%""#]],
     );
 }
 
@@ -28,7 +28,7 @@ fn unclosed_block_comment() {
     do_test(
         "/*/*/**/*/",
         expect!["Module { name: u!(\"test\"), items: [] }"],
-        expect!["ErrorMulti { errors: [Lexical(UnclosedBlockComment(0))] }"],
+        expect![[r#"unclosed 0,10 = "/*/*/**/*/""#]],
     );
 }
 
@@ -37,7 +37,28 @@ fn let_punct_fail() {
     do_test(
         &("let ".to_owned() + PUNCT_SRC),
         expect!["Module { name: u!(\"test\"), items: [] }"],
-        expect!["ErrorMulti { errors: [Lexical(Unexpected(4, 29)), Lexical(NameNotFound(29))] }"],
+        expect![[r#"
+            unexpected 4,29 = "}()[],.@#~?:$=!<>-&|+*/^%"
+            eof 29"#]],
+    );
+}
+
+#[test]
+fn multi_err() {
+    do_test(
+        "\
+        let aa = // \n\
+        /**/ ^@@ # !/*/*/**/*/",
+        expect![[
+            "Module { name: u!(\"test\"), items: [Decl(Decl { kind: Let, \
+            type_name: None, name: u!(\"aa\"), value: None })] }"
+        ]],
+        expect![[r##"
+            unexpected 18,21 = "^@@"
+            unexpected 22,23 = "#"
+            unexpected 24,25 = "!"
+            unclosed 25,35 = "/*/*/**/*/"
+            missing semi 35"##]],
     );
 }
 
@@ -49,7 +70,7 @@ fn decl() {
         Decl { kind: Let, type_name: None, name: u!(\"yeah\"), value: Some(Value(Value \
         { value: u!(\"3\"), kind: Int { base: Decimal, empty_int: false }, suffix_start: \
         1 })) })] }"]],
-        expect!["ErrorMulti { errors: [] }"],
+        expect![""],
     );
     do_test(
         "const yeah = 3;",
@@ -57,7 +78,7 @@ fn decl() {
         Decl { kind: Const, type_name: None, name: u!(\"yeah\"), value: Some(Value(Value { \
         value: u!(\"3\"), kind: Int { base: Decimal, empty_int: false }, suffix_start: \
         1 })) })] }"]],
-        expect!["ErrorMulti { errors: [] }"],
+        expect![""],
     )
 }
 
@@ -68,14 +89,14 @@ fn decl_with_type() {
         expect![["Module { name: u!(\"test\"), items: [Decl(\
         Decl { kind: Let, type_name: Some(u!(\"string\")), name: u!(\"yeah\"), value: Some(Value(Value { value: u!(\"3\"), \
         kind: Int { base: Decimal, empty_int: false }, suffix_start: 1 })) })] }"]],
-        expect![["ErrorMulti { errors: [] }"]]
+        expect![""]
     );
     do_test(
         "const string yeah = 3;",
         expect![["Module { name: u!(\"test\"), items: [Decl(\
         Decl { kind: Const, type_name: Some(u!(\"string\")), name: u!(\"yeah\"), value: Some(Value(Value { value: u!(\"3\"), \
         kind: Int { base: Decimal, empty_int: false }, suffix_start: 1 })) })] }"]],
-        expect!["ErrorMulti { errors: [] }"],
+        expect![""],
     )
 }
 
@@ -93,7 +114,7 @@ fn let_chain() {
         expected_token.assert_eq(&format!("{token:?}",));
     }
 
-    let expected_errors = expect!["ErrorMulti { errors: [] }"];
+    let expected_errors = expect!["ErrorMulti { lex: [], other: [] }"];
     expected_errors.assert_eq(&format!("{:?}", reader.errors));
 }
 
@@ -108,28 +129,20 @@ fn let_and_fn() {
         Decl { kind: Let, type_name: None, name: u!(\"yeah\"), value: Some(Value(Value { value: u!(\"3\"), \
         kind: Int { base: Decimal, empty_int: false }, suffix_start: 1 })) }), \
         Expr(FnCall(u!(\"print\"), TSpan { from: 1, to: 2 })), Expr(Var(u!(\"yeah\")))] }"]],
-        expect!["ErrorMulti { errors: [] }"],
+        expect![""],
     );
 }
 
 #[test]
-fn multi_err() {
+fn fn_call_str() {
+    // FIX: "yeah" is added twice
     do_test(
-        "\
-        let aa = // \n\
-        /**/ ^@@ # !/*/*/**/*/",
-        expect![[
-            "Module { name: u!(\"test\"), items: [Decl(Decl { kind: Let, \
-            type_name: None, name: u!(\"aa\"), value: None })] }"
-        ]],
-        expect![
-            "ErrorMulti { errors: [\
-            Lexical(Unexpected(18, 21)), \
-            Lexical(Unexpected(22, 23)), \
-            Lexical(Unexpected(24, 25)), \
-            Lexical(UnclosedBlockComment(25)), \
-            Lexical(MissingSemi(35))] }"
-        ],
+        r#"print("yeah");"#,
+        expect![["Module { name: u!(\"test\"), items: [Expr(FnCall(u!(\"print\"), \
+            TSpan { from: 0, to: 2 })), Expr(Value(Value { value: u!(\"\\\"yeah\\\"\"), kind: Str \
+            { terminated: true }, suffix_start: 6 })), Expr(Value(Value { value: u!(\"\\\"yeah\\\"\"), \
+            kind: Str { terminated: true }, suffix_start: 6 }))] }"]],
+        expect![""],
     );
 }
 
@@ -141,31 +154,36 @@ impl Module {
 }
 
 fn write_errs(src: &str, errs: &ErrorMulti) -> String {
-    use crate::error::LexicalError::*;
+    use crate::error::LexicalError::{self, *};
     use std::fmt::Write;
     let mut out = String::new();
 
-    let err = errs.lex.iter().try_for_each(|err| match err {
-        Unclosed(s) => {
-            let range = s.from as usize..s.to as usize;
-            writeln!(out, r#"unclosed {},{} = "{}" "#, s.from, s.to, &src[range])
+    let try_each = |err: &LexicalError| {
+        if out.get(out.len().saturating_sub(2)..) == Some(" \n") {
+            out.remove(out.len() - 2);
         }
-        Unexpected(s) => {
-            let range = s.from as usize..s.to as usize;
-            writeln!(
-                out,
-                r#"unexpected {},{} = "{}" "#,
-                s.from, s.to, &src[range]
-            )
+        match err {
+            Unclosed(s) => {
+                let range = s.from as usize..s.to as usize;
+                writeln!(out, r#"unclosed {},{} = "{}" "#, s.from, s.to, &src[range])
+            }
+            Unexpected(s) => {
+                let range = s.from as usize..s.to as usize;
+                writeln!(
+                    out,
+                    r#"unexpected {},{} = "{}" "#,
+                    s.from, s.to, &src[range]
+                )
+            }
+            Eof(pos) => writeln!(out, r#"eof {pos} "#),
+            MissingSemi(pos) => writeln!(out, r#"missing semi {pos} "#),
         }
-        Eof(pos) => writeln!(out, r#"eof {pos} "#),
-        MissingSemi(pos) => writeln!(out, r#"missing semi {pos} "#),
-    });
-    err.unwrap();
+    };
+    errs.lex.iter().try_for_each(try_each).unwrap();
 
-    if out.chars().last() == Some(' ') {
+    if out.get(out.len().saturating_sub(2)..) == Some(" \n") {
+        out.pop();
         out.pop();
     }
-
     out
 }

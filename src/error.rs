@@ -13,8 +13,8 @@ use crate::span::BSpan;
 /// A set of parsing errors
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ErrorMulti {
-    pub(crate) lex: Vec<LexicalError>,
-    pub(crate) other: Vec<ErrorOnce>,
+    pub lex: Vec<LexicalError>,
+    pub other: Vec<ErrorOnce>,
 }
 
 impl ErrorMulti {

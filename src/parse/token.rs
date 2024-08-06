@@ -6,7 +6,7 @@ use crate::{lex, util::Symbol};
 pub struct Module {
     name: Symbol,
     /// First item must be a fn
-    items: Vec<Token>,
+    pub(crate) items: Vec<Token>,
 }
 
 impl Module {
@@ -76,11 +76,10 @@ token_from!(Fn, Decl, Expr, Value, Import);
 /// [`DeclType`] <name> ?(= <value>);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Decl {
-    /// if none try implicit
-    kind: DeclKind,
-    type_name: Option<Symbol>,
-    name: Symbol,
-    value: Option<Expr>,
+    pub kind: DeclKind,
+    pub type_name: Option<Symbol>,
+    pub name: Symbol,
+    pub value: Option<Expr>,
 }
 
 impl Decl {
@@ -135,9 +134,9 @@ impl From<Value> for Expr {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Value {
-    value: Symbol,
-    kind: lex::LiteralKind,
-    suffix_start: u32,
+    pub value: Symbol,
+    pub kind: lex::LiteralKind,
+    pub suffix_start: u32,
 }
 
 impl Value {

@@ -1,16 +1,16 @@
 use expect_test::{expect, Expect};
 
-use crate::error::ErrorMulti;
-
-use super::token::Module;
 use super::Reader;
+
+use write::*;
+mod write;
 
 const PUNCT_SRC: &str = "}()[],.@#~?:$=!<>-&|+*/^%";
 
 fn do_test(src: &str, expected_tokens: Expect, expected_errors: Expect) {
-    let (token, errors) = Reader::new(src).module("test");
+    let (module, errors) = Reader::new(src).module("test");
 
-    expected_tokens.assert_eq(&format!("{token:?}",));
+    expected_tokens.assert_eq(&write_module(src, &module));
     expected_errors.assert_eq(&write_errs(src, &errors));
 }
 
@@ -118,6 +118,7 @@ fn let_chain() {
     expected_errors.assert_eq(&format!("{:?}", reader.errors));
 }
 
+// FIX: move fn_call span from to be 1 higher
 #[test]
 fn let_and_fn() {
     do_test(
@@ -144,46 +145,4 @@ fn fn_call_str() {
             kind: Str { terminated: true }, suffix_start: 6 }))] }"]],
         expect![""],
     );
-}
-
-impl Module {
-    pub fn to_str(&self) -> String {
-        todo!()
-        // self.
-    }
-}
-
-fn write_errs(src: &str, errs: &ErrorMulti) -> String {
-    use crate::error::LexicalError::{self, *};
-    use std::fmt::Write;
-    let mut out = String::new();
-
-    let try_each = |err: &LexicalError| {
-        if out.get(out.len().saturating_sub(2)..) == Some(" \n") {
-            out.remove(out.len() - 2);
-        }
-        match err {
-            Unclosed(s) => {
-                let range = s.from as usize..s.to as usize;
-                writeln!(out, r#"unclosed {},{} = "{}" "#, s.from, s.to, &src[range])
-            }
-            Unexpected(s) => {
-                let range = s.from as usize..s.to as usize;
-                writeln!(
-                    out,
-                    r#"unexpected {},{} = "{}" "#,
-                    s.from, s.to, &src[range]
-                )
-            }
-            Eof(pos) => writeln!(out, r#"eof {pos} "#),
-            MissingSemi(pos) => writeln!(out, r#"missing semi {pos} "#),
-        }
-    };
-    errs.lex.iter().try_for_each(try_each).unwrap();
-
-    if out.get(out.len().saturating_sub(2)..) == Some(" \n") {
-        out.pop();
-        out.pop();
-    }
-    out
 }

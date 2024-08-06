@@ -160,7 +160,7 @@ impl<'a> Reader<'a> {
         let mut expr = None;
 
         loop {
-            let next = match dbg!(self.parse_params()) {
+            let next = match self.parse_params() {
                 // close paren
                 (true, None) => break,
                 (true, Some(last)) => {
@@ -221,8 +221,7 @@ impl<'a> Reader<'a> {
         }
     }
 
-    /// `A` = `Open`, `B` = `Close`,
-    /// `C` = `Comma`, `D` = `Eof`
+    /// `A` = `Open`, `B` = `Close`, `C` = `Comma`, `D` = `Eof`
     fn next_param_kind(&mut self) -> Either4<(), (), (), ()> {
         use lex::token::TokenKind::*;
         loop {
@@ -350,6 +349,16 @@ impl<'a> Reader<'a> {
 
     fn err_unexpected(&mut self, token: lex::Token) {
         self.push_err(LexicalError::Unexpected(self.token_span(token.len)));
+    }
+
+    // TODO: this
+    #[allow(dead_code)]
+    fn comments(&mut self, token: lex::Token) -> bool {
+        use lex::token::TokenKind::*;
+        matches!(
+            token.kind,
+            LineComment { .. } | BlockComment { .. } | Whitespace
+        )
     }
 
     fn err_block_comment(&mut self, token: lex::Token) -> bool {

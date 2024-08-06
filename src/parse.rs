@@ -61,7 +61,7 @@ impl<'a> Reader<'a> {
         use lex::token::TokenKind::*;
         loop {
             let token = self.cursor.advance_token();
-            let span = BSpan::from_len(self.token_pos(), token.len);
+            let span = self.token_span(token.len);
             let kind = token.kind;
             match kind {
                 // (?doc)comments. skip normal comments
@@ -111,7 +111,7 @@ impl<'a> Reader<'a> {
     fn parse_decl(&mut self, kind: token::DeclKind) -> Option<token::Decl> {
         // get either var-name or type-name
         let Some(first_span) = self.until_ident() else {
-            self.push_err(LexicalError::NameNotFound(self.cursor.pos()));
+            self.push_err(LexicalError::Eof(self.cursor.pos()));
             return None;
         };
 
@@ -200,7 +200,7 @@ impl<'a> Reader<'a> {
         use lex::token::TokenKind::*;
         loop {
             let token = self.cursor.advance_token();
-            let span = BSpan::from_len(self.token_pos(), token.len);
+            let span = self.token_span(token.len);
             match token.kind {
                 _ if self.err_block_comment(token) => (),
                 LineComment { .. } | BlockComment { .. } | Whitespace | Comma => (),
@@ -252,12 +252,7 @@ impl<'a> Reader<'a> {
             match token.kind {
                 _ if self.err_block_comment(token) => (),
                 LineComment { .. } | BlockComment { .. } | Whitespace => (),
-                Ident => {
-                    return Some(BSpan {
-                        from: self.token_pos(),
-                        to: self.token_pos() + token.len,
-                    })
-                }
+                Ident => return Some(self.token_span(token.len)),
                 Eof => return None,
                 _ => self.err_unexpected(token),
             }
@@ -289,7 +284,7 @@ impl<'a> Reader<'a> {
     fn parse_expr_with(&mut self, mut token: lex::Token) -> Option<token::Expr> {
         use lex::token::TokenKind::*;
         loop {
-            let span = BSpan::from_len(self.token_pos(), token.len);
+            let span = self.token_span(token.len);
             match token.kind {
                 _ if self.err_block_comment(token) => (),
                 LineComment { .. } | BlockComment { .. } | Whitespace => (),
@@ -318,7 +313,7 @@ impl<'a> Reader<'a> {
                 LineComment { .. } | BlockComment { .. } | Whitespace => (),
                 Semi => break Some(Either3::A(())),
                 Eq => break Some(Either3::B(())),
-                Ident => break Some(Either3::C(BSpan::from_len(self.token_pos(), token.len))),
+                Ident => break Some(Either3::C(self.token_span(token.len))),
                 Eof => break None,
                 _ => self.err_unexpected(token),
             }
@@ -359,15 +354,13 @@ impl<'a> Reader<'a> {
     }
 
     fn err_unexpected(&mut self, token: lex::Token) {
-        let start = self.token_pos();
-        let end = start + token.len;
-        self.push_err(LexicalError::Unexpected(start, end));
+        self.push_err(LexicalError::Unexpected(self.token_span(token.len)));
     }
 
     fn err_block_comment(&mut self, token: lex::Token) -> bool {
         match token.kind {
             lex::TokenKind::BlockComment { terminated, .. } if !terminated => {
-                self.push_err(LexicalError::UnclosedBlockComment(self.token_pos()));
+                self.push_err(LexicalError::Unclosed(self.token_span(token.len)));
                 true
             }
             _ => false,
@@ -384,16 +377,20 @@ impl<'a> Reader<'a> {
     }
 
     fn current_range(&self, len: u32) -> &str {
-        self.range(BSpan::from_len(self.token_pos(), len))
+        self.range(self.token_span(len))
     }
 
     fn range(&self, span: BSpan) -> &str {
         &self.src()[span.from as usize..span.to as usize]
     }
 
-    /// TODO: have this accept a len and return a BSpan
+    #[inline]
     fn token_pos(&self) -> u32 {
         self.cursor.token_pos()
+    }
+
+    fn token_span(&self, len: u32) -> BSpan {
+        BSpan::new(self.token_pos(), self.token_pos() + len)
     }
 
     fn push_err(&mut self, err: impl Into<ErrorOnce>) {

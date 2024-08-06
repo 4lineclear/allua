@@ -1,5 +1,7 @@
 use expect_test::{expect, Expect};
 
+use crate::error::ErrorMulti;
+
 use super::token::Module;
 use super::Reader;
 
@@ -9,7 +11,7 @@ fn do_test(src: &str, expected_tokens: Expect, expected_errors: Expect) {
     let (token, errors) = Reader::new(src).module("test");
 
     expected_tokens.assert_eq(&format!("{token:?}",));
-    expected_errors.assert_eq(&format!("{errors:?}",));
+    expected_errors.assert_eq(&write_errs(src, &errors));
 }
 
 #[test]
@@ -136,4 +138,34 @@ impl Module {
         todo!()
         // self.
     }
+}
+
+fn write_errs(src: &str, errs: &ErrorMulti) -> String {
+    use crate::error::LexicalError::*;
+    use std::fmt::Write;
+    let mut out = String::new();
+
+    let err = errs.lex.iter().try_for_each(|err| match err {
+        Unclosed(s) => {
+            let range = s.from as usize..s.to as usize;
+            writeln!(out, r#"unclosed {},{} = "{}" "#, s.from, s.to, &src[range])
+        }
+        Unexpected(s) => {
+            let range = s.from as usize..s.to as usize;
+            writeln!(
+                out,
+                r#"unexpected {},{} = "{}" "#,
+                s.from, s.to, &src[range]
+            )
+        }
+        Eof(pos) => writeln!(out, r#"eof {pos} "#),
+        MissingSemi(pos) => writeln!(out, r#"missing semi {pos} "#),
+    });
+    err.unwrap();
+
+    if out.chars().last() == Some(' ') {
+        out.pop();
+    }
+
+    out
 }

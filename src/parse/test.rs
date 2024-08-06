@@ -1,5 +1,6 @@
 use expect_test::{expect, Expect};
 
+use super::token::Module;
 use super::Reader;
 
 const PUNCT_SRC: &str = "}()[],.@#~?:$=!<>-&|+*/^%";
@@ -43,15 +44,17 @@ fn decl() {
     do_test(
         "let yeah = 3;",
         expect![["Module { name: u!(\"test\"), items: [Decl(\
-        Decl { kind: Let, name: u!(\"yeah\"), value: Some(Value(Value { value: u!(\"3\"), \
-        kind: Int { base: Decimal, empty_int: false }, suffix_start: 1 })) })] }"]],
+        Decl { kind: Let, type_name: None, name: u!(\"yeah\"), value: Some(Value(Value \
+        { value: u!(\"3\"), kind: Int { base: Decimal, empty_int: false }, suffix_start: \
+        1 })) })] }"]],
         expect!["ErrorMulti { errors: [] }"],
     );
     do_test(
         "const yeah = 3;",
         expect![["Module { name: u!(\"test\"), items: [Decl(\
-        Decl { kind: Const, name: u!(\"yeah\"), value: Some(Value(Value { value: u!(\"3\"), \
-        kind: Int { base: Decimal, empty_int: false }, suffix_start: 1 })) })] }"]],
+        Decl { kind: Const, type_name: None, name: u!(\"yeah\"), value: Some(Value(Value { \
+        value: u!(\"3\"), kind: Int { base: Decimal, empty_int: false }, suffix_start: \
+        1 })) })] }"]],
         expect!["ErrorMulti { errors: [] }"],
     )
 }
@@ -59,16 +62,16 @@ fn decl() {
 #[test]
 fn decl_with_type() {
     do_test(
-        "string yeah = 3;",
+        "let string yeah = 3;",
         expect![["Module { name: u!(\"test\"), items: [Decl(\
-        Decl { kind: Type(u!(\"string\")), name: u!(\"yeah\"), value: Some(Value(Value { value: u!(\"3\"), \
+        Decl { kind: Let, type_name: Some(u!(\"string\")), name: u!(\"yeah\"), value: Some(Value(Value { value: u!(\"3\"), \
         kind: Int { base: Decimal, empty_int: false }, suffix_start: 1 })) })] }"]],
         expect![["ErrorMulti { errors: [] }"]]
     );
     do_test(
         "const string yeah = 3;",
         expect![["Module { name: u!(\"test\"), items: [Decl(\
-        Decl { kind: Const, name: u!(\"yeah\"), value: Some(Value(Value { value: u!(\"3\"), \
+        Decl { kind: Const, type_name: Some(u!(\"string\")), name: u!(\"yeah\"), value: Some(Value(Value { value: u!(\"3\"), \
         kind: Int { base: Decimal, empty_int: false }, suffix_start: 1 })) })] }"]],
         expect!["ErrorMulti { errors: [] }"],
     )
@@ -81,9 +84,9 @@ fn let_chain() {
     let token = reader.next(crate::parse::ParseMode::Module);
     for _ in 0..10 {
         let expected_token = expect![[
-            "Some(Decl(Decl { kind: Let, name: u!(\"yeah\"), value: Some(Value(Value \
-            { value: u!(\"3\"), kind: Int { base: Decimal, empty_int: false }, \
-            suffix_start: 1 })) }))"
+            "Some(Decl(Decl { kind: Let, type_name: None, name: u!(\"yeah\"), \
+            value: Some(Value(Value { value: u!(\"3\"), kind: Int { base: Decimal, \
+            empty_int: false }, suffix_start: 1 })) }))"
         ]];
         expected_token.assert_eq(&format!("{token:?}",));
     }
@@ -100,9 +103,9 @@ fn let_and_fn() {
         print(yeah);\
         ",
         expect![["Module { name: u!(\"test\"), items: [Decl(\
-        Decl { kind: Let, name: u!(\"yeah\"), value: Some(Value(Value { value: u!(\"3\"), \
+        Decl { kind: Let, type_name: None, name: u!(\"yeah\"), value: Some(Value(Value { value: u!(\"3\"), \
         kind: Int { base: Decimal, empty_int: false }, suffix_start: 1 })) }), \
-         Expr(FnCall(u!(\"print\"), TSpan { from: 1, to: 1 }))] }"]],
+        Expr(FnCall(u!(\"print\"), TSpan { from: 1, to: 2 })), Expr(Var(u!(\"yeah\")))] }"]],
         expect!["ErrorMulti { errors: [] }"],
     );
 }
@@ -115,7 +118,7 @@ fn multi_err() {
         /**/ ^@@ # !/*/*/**/*/",
         expect![[
             "Module { name: u!(\"test\"), items: [Decl(Decl { kind: Let, \
-            name: u!(\"aa\"), value: None })] }"
+            type_name: None, name: u!(\"aa\"), value: None })] }"
         ]],
         expect![
             "ErrorMulti { errors: [\
@@ -123,7 +126,14 @@ fn multi_err() {
             Lexical(Unexpected(22, 23)), \
             Lexical(Unexpected(24, 25)), \
             Lexical(UnclosedBlockComment(25)), \
-            Lexical(MissingSemi(35, 0))] }"
+            Lexical(MissingSemi(35))] }"
         ],
     );
+}
+
+impl Module {
+    pub fn to_str(&self) -> String {
+        todo!()
+        // self.
+    }
 }

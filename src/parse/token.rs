@@ -73,14 +73,25 @@ token_from!(Fn, Decl, Expr, Value, Import);
 pub struct Decl {
     /// if none try implicit
     kind: DeclKind,
+    type_name: Option<Symbol>,
     name: Symbol,
     value: Option<Expr>,
 }
 
 impl Decl {
     #[must_use]
-    pub const fn new(kind: DeclKind, name: Symbol, value: Option<Expr>) -> Self {
-        Self { kind, name, value }
+    pub const fn new(
+        kind: DeclKind,
+        type_name: Option<Symbol>,
+        name: Symbol,
+        value: Option<Expr>,
+    ) -> Self {
+        Self {
+            kind,
+            type_name,
+            name,
+            value,
+        }
     }
 }
 
@@ -89,12 +100,8 @@ impl Decl {
 pub enum DeclKind {
     /// let <name>
     Let,
-    /// <type> <name>
-    Type(Symbol),
     /// const <name>
     Const,
-    /// const <type> <name>
-    ConstType(Symbol),
 }
 
 /// ?(<defer>) `use` <name>;

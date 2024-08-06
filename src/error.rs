@@ -8,6 +8,7 @@ use std::fmt::Display;
 
 // TODO: consider having three vecs for each error kind
 // TODO: move some lex error handling to crate::lex
+// TODO: move to using bspan
 
 /// A set of parsing errors
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

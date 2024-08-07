@@ -57,6 +57,7 @@ pub enum Token {
     Expr(Expr),
     Value(Value),
     Import(Import),
+    Block(TSpan),
     /// A dummy token. should never appear
     Dummy,
 }

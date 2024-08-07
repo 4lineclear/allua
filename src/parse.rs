@@ -1,14 +1,14 @@
 // TODO: add raw idents back in eventually.
-// TODO: simplify to_string
 // TODO: create pattern-composer macro
 // TODO: consider adding system where doc comments can be anywhere?
 // maybe change how doc comments are considered compared to rust.
 // TODO: consider using u64 or usize over u32
 // TODO: consider rewriting the below.
-// TODO: move to use BSpan
-// TODO: consider removing normal var bindings, replacing them with <let> <type> <name> (? = <value>);
 // TODO: add tuples
+// TODO: add code blocks
+// TODO: consider removing semicolons, replacing them with nl
 #![allow(clippy::cast_possible_truncation)]
+
 use crate::{
     error::{ErrorMulti, ErrorOnce, LexicalError},
     lex::{self},
@@ -26,6 +26,8 @@ pub struct Reader<'a> {
     cursor: lex::Cursor<'a>,
     errors: ErrorMulti,
     tokens: Vec<token::Token>,
+    /// a backlog of blocks
+    blocks: Vec<u32>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -41,58 +43,50 @@ impl<'a> Reader<'a> {
             cursor: lex::Cursor::new(src),
             errors: ErrorMulti::default(),
             tokens: Vec::new(),
+            blocks: Vec::new(),
         }
     }
 
     /// Parse a module
     #[must_use]
     pub fn module(mut self, name: &str) -> (token::Module, ErrorMulti) {
-        while let Some(token) = self.next(ParseMode::Module) {
-            self.tokens.push(token);
-        }
+        while self.next() {}
         (token::Module::new(name, self.tokens), self.errors)
     }
 
-    #[allow(unused)]
-    fn next(&mut self, mode: ParseMode) -> Option<token::Token> {
+    fn next(&mut self) -> bool {
         use lex::token::TokenKind::*;
-        loop {
-            let token = self.cursor.advance_token();
-            let span = self.token_span(token.len);
-            let kind = token.kind;
-            match kind {
-                // (?doc)comments. skip normal comments
-                _ if self.filter_block_comment(token) => (),
-                LineComment { doc_style } => {
-                    if let Some(style) = doc_style {
-                        todo!("doc comments not added yet");
-                    }
-                }
-                BlockComment {
-                    doc_style,
-                    terminated,
-                } => {
-                    if let Some(style) = doc_style {
-                        todo!("doc comments not added yet");
-                    }
-                }
-                // empty
-                Semi | Whitespace => (),
-                Ident => match self.parse_ident(span) {
-                    Some(token) => return Some(token),
-                    None => (),
-                },
-                // NOTE: may require "backlog" stack
-                // code block
-                OpenBrace => {
-                    todo!("code blocks not implemented yet!")
-                }
-                // fn end
-                CloseBrace if mode == ParseMode::Fn => return None,
-                Eof => return None,
-                _ => self.err_unexpected(token),
+        let token = self.cursor.advance_token();
+        let span = self.token_span(token.len);
+        let kind = token.kind;
+        match kind {
+            // (?doc)comments or whitespace. skip normal comments
+            _ if self.filter_comment_or_whitespace(token) => (),
+            Semi => (),
+            Ident => match self.parse_ident(span) {
+                Some(token) => self.tokens.push(token),
+                None => (),
+            },
+            // code block
+            OpenBrace => {
+                self.tokens.push(token::Token::Dummy);
+                self.blocks.push(self.tokens.len() as u32);
             }
-        }
+            // code block end
+            CloseBrace => {
+                let Some(from) = self.blocks.pop() else {
+                    self.err_unexpected(token);
+                    return true;
+                };
+                self.tokens[from as usize - 1] = token::Token::Block(TSpan {
+                    from,
+                    to: self.tokens.len() as u32,
+                });
+            }
+            Eof => return false,
+            _ => self.err_unexpected(token),
+        };
+        true
     }
 
     // TODO: add handling for unset vars, when set is expected
@@ -346,16 +340,6 @@ impl<'a> Reader<'a> {
                 true
             }
             LineComment { .. } | BlockComment { .. } | Whitespace => true,
-            _ => false,
-        }
-    }
-
-    fn filter_block_comment(&mut self, token: lex::Token) -> bool {
-        match token.kind {
-            lex::TokenKind::BlockComment { terminated, .. } if !terminated => {
-                self.push_err(LexicalError::Unclosed(self.token_span(token.len)));
-                true
-            }
             _ => false,
         }
     }

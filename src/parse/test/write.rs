@@ -12,15 +12,28 @@ struct Writer<'a> {
     #[allow(dead_code)]
     src: &'a str,
     items: &'a [Token],
-    pos: usize,
+    pos: u32,
     out: &'a mut String,
+    blocks: Vec<u32>,
 }
 
 impl<'a> Writer<'a> {
+    fn write_block_end(&mut self) -> Result {
+        while self.blocks.last() == Some(&self.pos) {
+            self.blocks.pop();
+            if !self.out.ends_with('\n') {
+                write!(self.out, "\n")?;
+            }
+            write!(self.out, "{:width$}", "", width = self.blocks.len() * 4)?;
+            write!(self.out, "}}\n")?;
+        }
+        Ok(true)
+    }
     fn write_token(&mut self, token: Token) -> Result {
         if self.out.get(self.out.len().saturating_sub(2)..) == Some(" \n") {
             self.out.remove(self.out.len() - 2);
         }
+        write!(self.out, "{:width$}", "", width = self.blocks.len() * 4)?;
 
         let cont = match token {
             Token::Fn(_) => todo!("fns not added yet"),
@@ -44,13 +57,17 @@ impl<'a> Writer<'a> {
             Token::Expr(expr) => self.write_expr(expr),
             Token::Value(val) => self.write_val(val),
             Token::Import(_) => todo!("imports not added yet"),
+            Token::Block(span) => {
+                self.out.write_str("{\n")?;
+                self.blocks.push(span.to);
+                Ok(true)
+            }
             Token::Dummy => {
                 writeln!(self.out, "dummy")?;
                 Ok(true)
             }
         }?;
-
-        writeln!(self.out, ";")?;
+        self.write_block_end()?;
 
         Ok(cont)
     }
@@ -59,17 +76,15 @@ impl<'a> Writer<'a> {
         match expr {
             Expr::FnCall(name, param_span) => {
                 write!(self.out, "{}(", name.as_str())?;
-                println!("{self:#?}\n{param_span:?}");
                 if !param_span.is_empty() {
-                    while self.pos + 1 < param_span.to as usize {
+                    while self.pos + 1 < param_span.to {
                         self.pos += 1;
-                        let token = self.items[self.pos];
+                        let token = self.items[self.pos as usize];
                         let cont = match token {
                             // prevent infinite recursion
                             _ if token == Token::Expr(expr) => {
                                 panic!("same expr at index {} found: '{expr:#?}'", self.pos)
                             }
-
                             Token::Expr(expr) => self.write_expr(expr),
                             _ => self.write_token(token),
                         }?;
@@ -112,10 +127,11 @@ pub fn write_module(src: &str, module: &Module) -> String {
         items: &module.items,
         pos: 0,
         out: &mut out,
+        blocks: Vec::new(),
     };
 
     loop {
-        let Some(&token) = module.items.get(writer.pos) else {
+        let Some(&token) = module.items.get(writer.pos as usize) else {
             break;
         };
 
@@ -124,6 +140,8 @@ pub fn write_module(src: &str, module: &Module) -> String {
         }
         writer.pos += 1;
     }
+
+    writer.write_block_end().unwrap();
 
     if out.get(out.len().saturating_sub(2)..) == Some(" \n") {
         out.pop();

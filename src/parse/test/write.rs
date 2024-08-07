@@ -59,6 +59,7 @@ impl<'a> Writer<'a> {
         match expr {
             Expr::FnCall(name, param_span) => {
                 write!(self.out, "{}(", name.as_str())?;
+
                 for &token in &self.items[param_span.from as usize..param_span.to as usize] {
                     self.pos += 1;
                     let cont = match token {
@@ -73,7 +74,14 @@ impl<'a> Writer<'a> {
                     if !cont {
                         return Ok(false);
                     }
+                    write!(self.out, ", ")?;
                 }
+
+                if self.out.get(self.out.len().saturating_sub(2)..) == Some(", ") {
+                    self.out.pop();
+                    self.out.pop();
+                }
+
                 write!(self.out, ")")?;
                 Ok(true)
             }

@@ -169,22 +169,10 @@ impl<'a> Reader<'a> {
                     return None;
                 }
                 // close paren
-                Either3::B(Some(expr)) => break Some(expr),
-                Either3::B(None) => break None,
+                Either3::B(expr) => break expr,
                 // params
                 Either3::C(Some(expr)) => expr,
                 Either3::C(None) => continue,
-                // // close paren
-                // (true, None) => break None,
-                // (true, Some(last)) => break Some(last),
-                // // expr
-                // (false, Some(expr)) => expr,
-                // // eof
-                // (false, None) => {
-                //     self.tokens.truncate(from);
-                //     self.push_err(LexicalError::Eof(self.token_pos()));
-                //     return None;
-                // }
             };
             self.tokens.push(next.into());
         };

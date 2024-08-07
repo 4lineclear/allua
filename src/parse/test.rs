@@ -159,6 +159,7 @@ fn fn_fail_single_param() {
         expect![r#"unexpected 0,5 = "print""#],
     );
 }
+
 #[test]
 fn fn_fail_multi_param() {
     do_test(r#"print("yeah","""#, expect![[r""]], expect!["eof 15"]);
@@ -176,4 +177,30 @@ fn fn_fail_multi_param() {
             eof 21"#]],
     );
     do_test(r#"print(yeah, 1, print"#, expect![[r""]], expect!["eof 20"]);
+}
+
+#[test]
+fn nested_fn() {
+    do_test(
+        r#"print(print());"#,
+        expect![[r"
+            print(print());
+        "]],
+        expect![[r#""#]],
+    );
+    do_test(
+        r#"print(print(), print());"#,
+        expect![[r"
+            print(print(), print());
+        "]],
+        expect![[r#""#]],
+    );
+    // FIX: the below
+    do_test(
+        r#"print(print(print(print(print(print(print()))))));"#,
+        expect![[r"
+            print(print(print(print(print(print(print()))))));
+        "]],
+        expect![[r#""#]],
+    );
 }

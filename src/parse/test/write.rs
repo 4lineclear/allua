@@ -55,20 +55,18 @@ impl<'a> Writer<'a> {
         Ok(cont)
     }
 
-    // FIX: this function causes a stack overflow.
-    // write_expr keeps getting called
-    // issue is token[param_span.from] == current expr
     fn write_expr(&mut self, expr: Expr) -> Result {
         match expr {
             Expr::FnCall(name, param_span) => {
                 write!(self.out, "{}(", name.as_str())?;
-                println!("{param_span:?} {self:#?}");
                 for &token in &self.items[param_span.from as usize..param_span.to as usize] {
                     self.pos += 1;
                     let cont = match token {
+                        // prevent infinite recursion
                         _ if token == Token::Expr(expr) => {
                             panic!("same expr at index {} found: '{expr:#?}'", self.pos)
                         }
+
                         Token::Expr(expr) => self.write_expr(expr),
                         _ => self.write_token(token),
                     }?;

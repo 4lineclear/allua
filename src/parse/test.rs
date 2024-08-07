@@ -115,7 +115,6 @@ fn let_chain() {
     expected_errors.assert_eq(&format!("{:?}", reader.errors));
 }
 
-// FIX: move fn_call span from to be 1 higher
 #[test]
 fn let_and_fn() {
     do_test(
@@ -133,7 +132,6 @@ fn let_and_fn() {
 
 #[test]
 fn fn_call_str() {
-    // FIX: "yeah" is added twice
     do_test(
         r#"print("yeah");"#,
         expect![[r#"
@@ -141,4 +139,41 @@ fn fn_call_str() {
         "#]],
         expect![""],
     );
+}
+
+#[test]
+fn fn_fail_single_param() {
+    do_test(r#"print("""#, expect![[r""]], expect!["eof 8"]);
+    do_test(r#"print("#, expect![[r""]], expect!["eof 6"]);
+    do_test(r#"print(print"#, expect![[r""]], expect!["eof 11"]);
+    do_test(
+        r#"print(print("#,
+        expect![[r""]],
+        expect![[r#"
+        eof 12
+        eof 12"#]],
+    );
+    do_test(
+        r#"print"#,
+        expect![[r""]],
+        expect![r#"unexpected 0,5 = "print""#],
+    );
+}
+#[test]
+fn fn_fail_multi_param() {
+    do_test(r#"print("yeah","""#, expect![[r""]], expect!["eof 15"]);
+    do_test(r#"print(one"#, expect![[r""]], expect!["eof 9"]);
+    do_test(
+        r#"print(yeah, yeah(), """#,
+        expect![[r""]],
+        expect![[r#"eof 22"#]],
+    );
+    do_test(
+        r#"print(print(), print("#,
+        expect![[r""]],
+        expect![[r#"
+            eof 21
+            eof 21"#]],
+    );
+    do_test(r#"print(yeah, 1, print"#, expect![[r""]], expect!["eof 20"]);
 }

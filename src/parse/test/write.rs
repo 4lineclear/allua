@@ -59,22 +59,25 @@ impl<'a> Writer<'a> {
         match expr {
             Expr::FnCall(name, param_span) => {
                 write!(self.out, "{}(", name.as_str())?;
+                println!("{self:#?}\n{param_span:?}");
+                if !param_span.is_empty() {
+                    while self.pos + 1 < param_span.to as usize {
+                        self.pos += 1;
+                        let token = self.items[self.pos];
+                        let cont = match token {
+                            // prevent infinite recursion
+                            _ if token == Token::Expr(expr) => {
+                                panic!("same expr at index {} found: '{expr:#?}'", self.pos)
+                            }
 
-                for &token in &self.items[param_span.from as usize..param_span.to as usize] {
-                    self.pos += 1;
-                    let cont = match token {
-                        // prevent infinite recursion
-                        _ if token == Token::Expr(expr) => {
-                            panic!("same expr at index {} found: '{expr:#?}'", self.pos)
+                            Token::Expr(expr) => self.write_expr(expr),
+                            _ => self.write_token(token),
+                        }?;
+                        if !cont {
+                            return Ok(false);
                         }
-
-                        Token::Expr(expr) => self.write_expr(expr),
-                        _ => self.write_token(token),
-                    }?;
-                    if !cont {
-                        return Ok(false);
+                        write!(self.out, ", ")?;
                     }
-                    write!(self.out, ", ")?;
                 }
 
                 if self.out.get(self.out.len().saturating_sub(2)..) == Some(", ") {

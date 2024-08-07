@@ -9,6 +9,7 @@ const PUNCT_SRC: &str = "}()[],.@#~?:$=!<>-&|+*/^%";
 
 fn do_test(src: &str, expected_tokens: Expect, expected_errors: Expect) {
     let (module, errors) = Reader::new(src).module("test");
+    println!("{module:#?}");
 
     expected_tokens.assert_eq(&write_module(src, &module));
     expected_errors.assert_eq(&write_errs(src, &errors));
@@ -195,12 +196,18 @@ fn nested_fn() {
         "]],
         expect![[r#""#]],
     );
-    // FIX: the below
     do_test(
         r#"print(print(print(print(print(print(print()))))));"#,
         expect![[r"
             print(print(print(print(print(print(print()))))));
         "]],
+        expect![[r#""#]],
+    );
+    do_test(
+        r#"print(print(print(), ""), print(print(one, two, three, yeah(five))));"#,
+        expect![[r#"
+            print(print(print(), ""), print(print(one, two, three, yeah(five))));
+        "#]],
         expect![[r#""#]],
     );
 }

@@ -30,19 +30,22 @@ fn map_errs(s: &str) -> String {
     errs
 }
 
+fn map_tokens(tokens: &[&str]) -> Vec<String> {
+    tokens
+        .into_iter()
+        .map(|&s| s.to_owned())
+        .collect::<Vec<_>>()
+}
+
 macro_rules! do_test {
     ($src:expr, $expected_tokens:expr, $expected_errors:expr $(,)?) => {{
         let (module, errors) = Reader::new($src).module("test");
         // extra info here in case of failure
         println!("testing {:?} {module:#?}", pos!());
+        let tokens = map_tokens(&$expected_tokens);
         let errs = map_errs($expected_errors);
-        assert_eq!(
-            $expected_tokens
-                .into_iter()
-                .map(str::to_owned)
-                .collect::<Vec<_>>(),
-            write_module($src, &module)
-        );
+        println!("tokens:\n{tokens:#?}\nerrs:\n{errs}\nsrc:\n{}\n", $src);
+        assert_eq!(tokens, write_module($src, &module));
         assert_eq!(&errs, &write_errs($src, &errors));
     }};
 }
@@ -97,6 +100,8 @@ fn multi_err() {
 fn decl() {
     do_test!("let yeah = 3;", ["let", "yeah", "=", "3"], "");
     do_test!("const yeah = 3;", ["const", "yeah", "=", "3"], "");
+    do_test!("let r#yeah = 3;", ["let", "r#yeah", "=", "3"], "");
+    do_test!("const r#yeah = 3;", ["const", "r#yeah", "=", "3"], "");
 }
 
 #[test]
@@ -109,6 +114,16 @@ fn decl_with_type() {
     do_test!(
         "const string yeah = 3;",
         ["const", "string", "yeah", "=", "3"],
+        ""
+    );
+    do_test!(
+        "let string r#yeah = 3;",
+        ["let", "string", "r#yeah", "=", "3"],
+        ""
+    );
+    do_test!(
+        "const string r#yeah = 3;",
+        ["const", "string", "r#yeah", "=", "3"],
         ""
     );
 }
@@ -133,6 +148,14 @@ fn let_and_fn() {
         print(yeah);\
         ",
         ["let", "yeah", "=", "3", "print", "(", "yeah", ")",],
+        "",
+    );
+    do_test!(
+        "\
+        let r#yeah = 3;\n\
+        r#print(r#yeah);\
+        ",
+        ["let", "r#yeah", "=", "3", "r#print", "(", "r#yeah", ")",],
         "",
     );
 }
@@ -221,6 +244,21 @@ fn block() {
             }
         }"#,
         ["{", "{", "let", "string", "yeah", "=", "\"\"", "print", "(", "yeah", ")", "}", "}"],
+        "",
+    );
+    do_test!(
+        &r#"{
+            {
+                let string yeah = "";
+                print(yeah);
+            }
+        }"#
+        .repeat(3),
+        [
+            "{", "{", "let", "string", "yeah", "=", "\"\"", "print", "(", "yeah", ")", "}", "}",
+            "{", "{", "let", "string", "yeah", "=", "\"\"", "print", "(", "yeah", ")", "}", "}",
+            "{", "{", "let", "string", "yeah", "=", "\"\"", "print", "(", "yeah", ")", "}", "}",
+        ],
         "",
     );
 }

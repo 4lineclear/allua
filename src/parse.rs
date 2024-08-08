@@ -5,7 +5,6 @@
 // TODO: consider using u64 or usize over u32
 // TODO: consider rewriting the below.
 // TODO: add tuples
-// TODO: add code blocks
 // TODO: consider removing semicolons, replacing them with nl
 #![allow(clippy::cast_possible_truncation)]
 
@@ -63,7 +62,7 @@ impl<'a> Reader<'a> {
             // (?doc)comments or whitespace. skip normal comments
             _ if self.filter_comment_or_whitespace(token) => (),
             Semi => (),
-            Ident => match self.parse_ident(span) {
+            Ident | RawIdent => match self.parse_ident(span) {
                 Some(token) => self.tokens.push(token),
                 None => (),
             },
@@ -191,7 +190,7 @@ impl<'a> Reader<'a> {
                 _ if self.filter_comment_or_whitespace(token) => (),
                 Comma => (),
                 CloseParen => break Either3::B(None),
-                Ident => {
+                Ident | RawIdent => {
                     break loop {
                         let after_ident = self.cursor.advance_token();
                         match after_ident.kind {
@@ -224,7 +223,7 @@ impl<'a> Reader<'a> {
             let token = self.cursor.advance_token();
             match token.kind {
                 _ if self.filter_comment_or_whitespace(token) => (),
-                Ident => return Some(self.token_span(token.len)),
+                Ident | RawIdent => return Some(self.token_span(token.len)),
                 Eof => return None,
                 _ => self.err_unexpected(token),
             }
@@ -258,7 +257,7 @@ impl<'a> Reader<'a> {
             let span = self.token_span(token.len);
             match token.kind {
                 _ if self.filter_comment_or_whitespace(token) => (),
-                Ident => break self.parse_fn_call(span, true),
+                Ident | RawIdent => break self.parse_fn_call(span, true),
                 Literal { kind, suffix_start } => {
                     break Some(token::Expr::Value(token::Value::new(
                         self.current_range(token.len).into(),
@@ -282,7 +281,7 @@ impl<'a> Reader<'a> {
                 _ if self.filter_comment_or_whitespace(token) => (),
                 Semi => break Some(Either3::A(())),
                 Eq => break Some(Either3::B(())),
-                Ident => break Some(Either3::C(self.token_span(token.len))),
+                Ident | RawIdent => break Some(Either3::C(self.token_span(token.len))),
                 Eof => break None,
                 _ => self.err_unexpected(token),
             }

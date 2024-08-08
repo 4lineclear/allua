@@ -34,6 +34,19 @@ pub fn is_ident(s: &str) -> bool {
         .is_some_and(|start| is_id_start(start) && chars.all(is_id_continue))
 }
 
+/// Validates a raw string literal. Used for getting more information about a
+/// problem with a `RawStr`/`RawByteStr` with a `None` field.
+#[inline]
+pub fn validate_raw_str(input: &str, prefix_len: u32) -> Result<(), RawStrError> {
+    debug_assert!(!input.is_empty());
+    let mut cursor = Cursor::new(input);
+    // Move past the leading `r` or `br`.
+    for _ in 0..prefix_len {
+        cursor.bump().unwrap();
+    }
+    cursor.raw_double_quoted_string(prefix_len).map(|_| ())
+}
+
 impl Cursor<'_> {
     /// Parses a token from the input string.
     pub fn advance_token(&mut self) -> Token {
@@ -52,8 +65,9 @@ impl Cursor<'_> {
             // Whitespace sequence.
             c if is_whitespace(c) => self.whitespace(),
 
-            // Raw string literal or identifier.
+            // Raw identifier, raw string literal or identifier.
             'r' => match (self.first(), self.second()) {
+                ('#', c1) if is_id_start(c1) => self.raw_ident(),
                 ('#', _) | ('"', _) => {
                     let res = self.raw_double_quoted_string(1);
                     let suffix_start = self.pos_within_token();
@@ -197,6 +211,15 @@ impl Cursor<'_> {
         debug_assert!(is_whitespace(self.prev()));
         self.eat_while(is_whitespace);
         Whitespace
+    }
+
+    fn raw_ident(&mut self) -> TokenKind {
+        debug_assert!(self.prev() == 'r' && self.first() == '#' && is_id_start(self.second()));
+        // Eat "#" symbol.
+        self.bump();
+        // Eat the identifier part of RawIdent.
+        self.eat_identifier();
+        RawIdent
     }
 
     fn ident_or_unknown_prefix(&mut self) -> TokenKind {

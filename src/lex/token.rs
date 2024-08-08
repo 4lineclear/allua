@@ -40,6 +40,9 @@ pub enum TokenKind {
     /// At this step, keywords are also considered identifiers.
     Ident,
 
+    /// "r#ident"
+    RawIdent,
+
     /// Like the above, but containing invalid unicode codepoints.
     InvalidIdent,
 
@@ -129,6 +132,7 @@ impl TokenKind {
             BlockComment { .. } => "block comment",
             Whitespace => "whitespace",
             Ident => "ident",
+            RawIdent => "r#ident",
             InvalidIdent => "invalid ident",
             InvalidPrefix => "invalid prefix",
             Literal { kind, .. } => match kind {

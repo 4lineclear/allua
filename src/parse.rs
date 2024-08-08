@@ -9,25 +9,18 @@
 #![allow(clippy::cast_possible_truncation)]
 
 use crate::{
-    error::{ErrorMulti, ErrorOnce, LexicalError},
+    error::{ErrorMulti, LexicalError},
     lex::{self},
     span::{BSpan, TSpan},
-    util::Symbol,
 };
 
+pub use secure::Reader;
+
+/// a secure module for keeping certain fields safe.
+mod secure;
 #[cfg(test)]
 pub mod test;
 pub mod token;
-
-/// Reads tokens into a tokenstream
-#[derive(Debug)]
-pub struct Reader<'a> {
-    cursor: lex::Cursor<'a>,
-    errors: ErrorMulti,
-    tokens: Vec<token::Token>,
-    /// a backlog of blocks
-    blocks: Vec<u32>,
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ParseMode {
@@ -36,21 +29,20 @@ pub enum ParseMode {
 }
 
 impl<'a> Reader<'a> {
-    #[must_use]
-    pub fn new(src: &'a str) -> Self {
-        Self {
-            cursor: lex::Cursor::new(src),
-            errors: ErrorMulti::default(),
-            tokens: Vec::new(),
-            blocks: Vec::new(),
-        }
-    }
-
     /// Parse a module
     #[must_use]
     pub fn module(mut self, name: &str) -> (token::Module, ErrorMulti) {
         while self.next() {}
-        (token::Module::new(name, self.tokens), self.errors)
+        let (cursor, mut errors, mut tokens, spans, blocks) = self.into_parts();
+
+        for pos in blocks.into_iter() {
+            let span = spans.get(&pos).unwrap();
+            let span = BSpan::new(span.from, cursor.pos() as u32);
+            errors.push(LexicalError::Unclosed(span));
+            tokens.truncate(pos as usize);
+        }
+
+        (token::Module::new(name, tokens), errors)
     }
 
     fn next(&mut self) -> bool {
@@ -63,25 +55,17 @@ impl<'a> Reader<'a> {
             _ if self.filter_comment_or_whitespace(token) => (),
             Semi => (),
             Ident | RawIdent => match self.parse_ident(span) {
-                Some(token) => self.tokens.push(token),
+                Some(token) => self.push_token(token),
                 None => (),
             },
+            // TODO: allow for parsing code blocks in other areas.
             // code block
             OpenBrace => {
-                self.tokens.push(token::Token::Dummy);
-                self.blocks.push(self.tokens.len() as u32);
+                self.push_block(self.len() as u32);
+                self.push_token(token::Token::Dummy);
             }
             // code block end
-            CloseBrace => {
-                let Some(from) = self.blocks.pop() else {
-                    self.err_unexpected(token);
-                    return true;
-                };
-                self.tokens[from as usize - 1] = token::Token::Block(TSpan {
-                    from,
-                    to: self.tokens.len() as u32,
-                });
-            }
+            CloseBrace => self.set_block(token),
             Eof => return false,
             _ => self.err_unexpected(token),
         };
@@ -145,19 +129,18 @@ impl<'a> Reader<'a> {
 
     /// (..)
     fn parse_fn_call(&mut self, span: BSpan, check_paren: bool) -> Option<token::Expr> {
-        // TODO: test incorrect/correct function calls
         if check_paren && !self.until_open_paren() {
             self.err_unexpected(span);
             return None;
         }
-        let from = self.tokens.len();
-        self.tokens.push(token::Token::Dummy);
+        let from = self.len();
+        self.push_token(token::Token::Dummy);
 
         let expr = loop {
             let next = match self.parse_params() {
                 // Eof
                 Either3::A(()) => {
-                    self.tokens.truncate(from);
+                    self.truncate(from as u32);
                     self.push_err(LexicalError::Eof(self.token_pos()));
                     return None;
                 }
@@ -167,13 +150,13 @@ impl<'a> Reader<'a> {
                 Either3::C(Some(expr)) => expr,
                 Either3::C(None) => continue,
             };
-            self.tokens.push(next.into());
+            self.push_token(next);
         };
 
         let set_idx = from;
-        let to = self.tokens.len() as u32 + expr.is_some() as u32;
+        let to = self.len() as u32 + expr.is_some() as u32;
         let from = from as u32 + 1;
-        self.tokens[set_idx] = token::Expr::FnCall(self.symbol(span), TSpan { from, to }).into();
+        self.set_fn_call(set_idx, self.symbol(span), TSpan { from, to });
 
         expr
     }
@@ -341,45 +324,6 @@ impl<'a> Reader<'a> {
             LineComment { .. } | BlockComment { .. } | Whitespace => true,
             _ => false,
         }
-    }
-
-    #[must_use]
-    #[inline]
-    pub const fn src(&self) -> &str {
-        self.cursor.src()
-    }
-
-    #[allow(dead_code)]
-    fn current_char(&self) -> char {
-        let pos = self.token_pos() as usize;
-        self.src()[pos..]
-            .chars()
-            .next()
-            .expect("couldn't get current char")
-    }
-
-    fn current_range(&self, len: u32) -> &str {
-        self.range(self.token_span(len))
-    }
-
-    fn range(&self, span: BSpan) -> &str {
-        &self.src()[span.from as usize..span.to as usize]
-    }
-
-    fn symbol(&self, span: BSpan) -> Symbol {
-        self.src()[span.from as usize..span.to as usize].into()
-    }
-
-    const fn token_pos(&self) -> u32 {
-        self.cursor.token_pos()
-    }
-
-    const fn token_span(&self, len: u32) -> BSpan {
-        BSpan::new(self.token_pos(), self.token_pos() + len)
-    }
-
-    fn push_err(&mut self, err: impl Into<ErrorOnce>) {
-        self.errors.push(err);
     }
 }
 

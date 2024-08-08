@@ -1,5 +1,4 @@
 // TODO: create custom tester
-// use expect_test::expect;
 use super::Reader;
 use pretty_assertions::assert_eq;
 
@@ -260,5 +259,32 @@ fn block() {
             "{", "{", "let", "string", "yeah", "=", "\"\"", "print", "(", "yeah", ")", "}", "}",
         ],
         "",
+    );
+}
+
+#[test]
+fn unclosed_block() {
+    do_test!("{", [], r#"unclosed 0,1 = "{""#,);
+    do_test!(
+        "{{",
+        [],
+        r#"
+        unclosed 0,2 = "{{"
+        unclosed 1,2 = "{"
+        "#,
+    );
+    do_test!(
+        "print(yeah);{{}",
+        ["print", "(", "yeah", ")"],
+        r#"
+        unclosed 12,15 = "{{}"
+        "#,
+    );
+    do_test!(
+        "print(yeah);{{print(yeah);}",
+        ["print", "(", "yeah", ")"],
+        r#"
+        unclosed 12,27 = "{{print(yeah);}"
+        "#,
     );
 }

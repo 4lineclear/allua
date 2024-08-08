@@ -246,7 +246,8 @@ fn block() {
         "",
     );
     do_test!(
-        &r#"{
+        &r#"
+        {
             {
                 let string yeah = "";
                 print(yeah);

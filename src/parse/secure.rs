@@ -1,3 +1,4 @@
+// TODO: consider adding tests to spans
 use std::collections::HashMap;
 
 use crate::{
@@ -14,7 +15,6 @@ pub struct Reader<'a> {
     pub cursor: lex::Cursor<'a>,
     errors: ErrorMulti,
     tokens: Vec<token::Token>,
-    // TODO: consider adding tests to spans
     block_spans: HashMap<u32, BSpan>,
     /// a backlog of blocks
     blocks: Vec<u32>,
@@ -32,6 +32,7 @@ impl<'a> Reader<'a> {
         }
     }
 
+    #[must_use]
     pub fn into_parts(
         self,
     ) -> (
@@ -62,7 +63,15 @@ impl<'a> Reader<'a> {
             from: pos,
             to: self.len() as u32,
         });
-        self.block_spans.get_mut(&pos).unwrap().to = self.cursor.pos();
+
+        let Some(it) = self.block_spans.get_mut(&pos) else {
+            self.push_err(ErrorOnce::Other(format!(
+                "invalid pos recieved while setting pos: {pos}"
+            )));
+            return;
+        };
+
+        it.to = self.cursor.pos();
     }
 
     pub fn push_block(&mut self, pos: u32) {
@@ -71,8 +80,14 @@ impl<'a> Reader<'a> {
             .insert(pos, BSpan::new(self.token_pos(), self.cursor.pos()));
     }
 
+    #[must_use]
     pub fn len(&self) -> usize {
         self.tokens.len()
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.tokens.is_empty()
     }
 
     pub fn truncate(&mut self, len: u32) {
@@ -88,7 +103,7 @@ impl<'a> Reader<'a> {
     }
 
     pub fn push_token(&mut self, token: impl Into<token::Token>) {
-        self.tokens.push(token.into())
+        self.tokens.push(token.into());
     }
 
     pub fn pop_token(&mut self) -> Option<token::Token> {
@@ -96,12 +111,12 @@ impl<'a> Reader<'a> {
     }
 
     #[must_use]
-    #[inline]
     pub const fn src(&self) -> &str {
         self.cursor.src()
     }
 
     #[allow(dead_code)]
+    #[must_use]
     fn current_char(&self) -> char {
         let pos = self.token_pos() as usize;
         self.src()[pos..]
@@ -110,22 +125,27 @@ impl<'a> Reader<'a> {
             .expect("couldn't get current char")
     }
 
+    #[must_use]
     pub fn current_range(&self, len: u32) -> &str {
         self.range(self.token_span(len))
     }
 
+    #[must_use]
     pub fn range(&self, span: BSpan) -> &str {
         &self.src()[span.from as usize..span.to as usize]
     }
 
+    #[must_use]
     pub fn symbol(&self, span: BSpan) -> Symbol {
         self.src()[span.from as usize..span.to as usize].into()
     }
 
+    #[must_use]
     pub const fn token_pos(&self) -> u32 {
         self.cursor.token_pos()
     }
 
+    #[must_use]
     pub const fn token_span(&self, len: u32) -> BSpan {
         BSpan::new(self.token_pos(), self.token_pos() + len)
     }

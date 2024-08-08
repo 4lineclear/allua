@@ -126,7 +126,7 @@ pub fn write_errs(src: &str, errs: &ErrorMulti) -> String {
     use std::fmt::Write;
     let mut out = String::new();
 
-    let try_each = |err: &LexicalError| {
+    let write_lex = |err: &LexicalError| {
         if out.get(out.len().saturating_sub(2)..) == Some(" \n") {
             out.remove(out.len() - 2);
         }
@@ -147,7 +147,11 @@ pub fn write_errs(src: &str, errs: &ErrorMulti) -> String {
             MissingSemi(pos) => writeln!(out, r#"missing semi {pos} "#),
         }
     };
-    errs.lex.iter().try_for_each(try_each).unwrap();
+    errs.lex.iter().try_for_each(write_lex).unwrap();
+    errs.other
+        .iter()
+        .try_for_each(|err| writeln!(out, r#"other error = "{err}""#))
+        .unwrap();
 
     if out.get(out.len().saturating_sub(2)..) == Some(" \n") {
         out.pop();

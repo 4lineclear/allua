@@ -14,7 +14,7 @@ use crate::span::BSpan;
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ErrorMulti {
     pub lex: Vec<LexicalError>,
-    pub other: Vec<ErrorOnce>,
+    pub other: Vec<String>,
 }
 
 impl ErrorMulti {
@@ -31,6 +31,7 @@ impl ErrorMulti {
                 _ => self.lex.push(Unexpected(new)),
             },
             Lexical(lex) => self.lex.push(lex),
+            Other(err) => self.other.push(err),
         }
     }
 }
@@ -39,6 +40,7 @@ impl ErrorMulti {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ErrorOnce {
     Lexical(LexicalError),
+    Other(String),
 }
 
 impl From<LexicalError> for ErrorOnce {

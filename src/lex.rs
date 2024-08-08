@@ -36,6 +36,14 @@ pub fn is_ident(s: &str) -> bool {
 
 /// Validates a raw string literal. Used for getting more information about a
 /// problem with a `RawStr`/`RawByteStr` with a `None` field.
+///
+/// # Errors
+///
+/// see [`RawStrError`]
+///
+/// # Panics
+///
+/// Panics if the given `prefix_len` is incorrect
 #[inline]
 pub fn validate_raw_str(input: &str, prefix_len: u32) -> Result<(), RawStrError> {
     debug_assert!(!input.is_empty());

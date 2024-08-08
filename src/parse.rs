@@ -9,7 +9,7 @@
 #![allow(clippy::cast_possible_truncation)]
 
 use crate::{
-    error::{ErrorMulti, LexicalError},
+    error::{ErrorMulti, ErrorOnce, LexicalError},
     lex::{self},
     span::{BSpan, TSpan},
 };
@@ -35,9 +35,15 @@ impl<'a> Reader<'a> {
         while self.next() {}
         let (cursor, mut errors, mut tokens, spans, blocks) = self.into_parts();
 
-        for pos in blocks.into_iter() {
-            let span = spans.get(&pos).unwrap();
-            let span = BSpan::new(span.from, cursor.pos() as u32);
+        // TODO: consider changes this
+        for pos in blocks {
+            let Some(span) = spans.get(&pos) else {
+                errors.push(ErrorOnce::Other(format!(
+                    "found pos in block backlog that was out of bounds: {pos}"
+                )));
+                continue;
+            };
+            let span = BSpan::new(span.from, cursor.pos());
             errors.push(LexicalError::Unclosed(span));
             tokens.truncate(pos as usize);
         }
@@ -154,7 +160,7 @@ impl<'a> Reader<'a> {
         };
 
         let set_idx = from;
-        let to = self.len() as u32 + expr.is_some() as u32;
+        let to = self.len() as u32 + u32::from(expr.is_some());
         let from = from as u32 + 1;
         self.set_fn_call(set_idx, self.symbol(span), TSpan { from, to });
 
@@ -163,7 +169,7 @@ impl<'a> Reader<'a> {
 
     /// ..)
     ///
-    /// `A` = Eof `B` = CloseParen `C` = Param
+    /// `A` = `Eof` `B` = `CloseParen` `C` = `Param`
     fn parse_params(&mut self) -> Either3<(), Option<token::Expr>, Option<token::Expr>> {
         use lex::token::TokenKind::*;
         loop {
@@ -311,7 +317,7 @@ impl<'a> Reader<'a> {
     }
 
     fn err_unexpected(&mut self, span: impl Into<AsBSpan>) {
-        self.push_err(LexicalError::Unexpected(self.span(span)))
+        self.push_err(LexicalError::Unexpected(self.span(span)));
     }
 
     fn filter_comment_or_whitespace(&mut self, token: lex::Token) -> bool {

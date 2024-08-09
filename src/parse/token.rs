@@ -51,7 +51,8 @@ pub struct Fn {
     pub tokens: TSpan,
 }
 impl Fn {
-    pub fn new(
+    #[must_use]
+    pub const fn new(
         name: Symbol,
         type_name: Option<Symbol>,
         param_span: TSpan,

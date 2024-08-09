@@ -10,6 +10,7 @@
 // code block
 // TODO: create a compiler error type.
 // TODO: add visibility item to Fn
+// TODO: add return keyword
 #![allow(clippy::cast_possible_truncation)]
 
 use crate::{
@@ -130,12 +131,11 @@ impl<'a> Reader<'a> {
                 type_name = None;
             }
             Either3::C(var_span) => {
-                value = match self.until_eq() {
-                    true => self.parse_expr(),
-                    false => {
-                        self.push_err(LexicalError::Eof(self.cursor.pos()));
-                        return None;
-                    }
+                value = if self.until_eq() {
+                    self.parse_expr()
+                } else {
+                    self.push_err(LexicalError::Eof(self.cursor.pos()));
+                    return None;
                 };
                 name = self.range(var_span);
                 type_name = Some(self.symbol(first_span));
@@ -231,7 +231,7 @@ impl<'a> Reader<'a> {
             let token = self.cursor.advance_token();
             match self.next_or_close_brace(token) {
                 Either3::A(()) => {
-                    self.truncate(dummy_pos as u32);
+                    self.truncate(dummy_pos);
                     self.push_err(LexicalError::Eof(self.token_pos()));
                     return;
                 }
@@ -345,6 +345,7 @@ impl<'a> Reader<'a> {
     /// Parses until an ident, returns the byte position
     fn until_ident(&mut self) -> Option<BSpan> {
         use lex::token::TokenKind::*;
+
         loop {
             let token = self.cursor.advance_token();
             match token.kind {

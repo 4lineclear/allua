@@ -305,3 +305,23 @@ fn empty_fn() {
     );
     do_test!(r#"fn string yeah() {}"#, ["fn", "string", "yeah"], "",);
 }
+
+#[test]
+#[rustfmt::skip]
+fn basic_fn_1() {
+    do_test!(
+        r#"
+fn yeah() {
+    const string hello = "Hello"
+    const string world = "World"
+    print("{hello}, {world}!")
+}"#,
+        [
+            "fn", "yeah",
+            "const", "string", "hello", "=", "\"Hello\"",
+            "const", "string", "world", "=", "\"World\"",
+            "print", "(", "\"{hello}, {world}!\"", ")"
+        ],
+        "",
+    );
+}

@@ -98,6 +98,23 @@ impl<'a> Reader<'a> {
         self.tokens[set_idx] = token::Expr::FnCall(symbol, span).into();
     }
 
+    pub fn set_fn_def(
+        &mut self,
+        set_idx: usize,
+        name: BSpan,
+        type_name: Option<BSpan>,
+        param_span: TSpan,
+        token_span: TSpan,
+    ) {
+        self.tokens[set_idx] = token::Fn::new(
+            self.range(name).into(),
+            type_name.map(|span| self.range(span).into()),
+            param_span,
+            token_span,
+        )
+        .into();
+    }
+
     pub fn push_err(&mut self, err: impl Into<ErrorOnce>) {
         self.errors.push(err);
     }

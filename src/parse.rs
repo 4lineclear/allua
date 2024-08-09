@@ -6,6 +6,10 @@
 // TODO: consider rewriting the below.
 // TODO: add tuples
 // TODO: consider removing semicolons, replacing them with nl
+// TODO: allow for parsing code blocks in other areas.
+// code block
+// TODO: create a compiler error type.
+// TODO: add visibility item to Fn
 #![allow(clippy::cast_possible_truncation)]
 
 use crate::{
@@ -35,7 +39,6 @@ impl<'a> Reader<'a> {
         while self.next() {}
         let (cursor, mut errors, mut tokens, spans, blocks) = self.into_parts();
 
-        // TODO: consider changes this
         for pos in blocks {
             let Some(span) = spans.get(&pos) else {
                 errors.push(ErrorOnce::Other(format!(
@@ -52,37 +55,52 @@ impl<'a> Reader<'a> {
     }
 
     fn next(&mut self) -> bool {
-        use lex::token::TokenKind::*;
         let token = self.cursor.advance_token();
+        match self.next_or_close_brace(token) {
+            Either3::A(()) => false,
+            Either3::B(()) => true,
+            Either3::C(()) => {
+                self.set_block(token);
+                true
+            }
+        }
+    }
+
+    /// `A` = `Eof` `B` = `Token` `C` = `CloseBrace`
+    fn next_or_close_brace(&mut self, token: lex::Token) -> Either3<(), (), ()> {
+        use lex::token::TokenKind::*;
         let span = self.token_span(token.len);
         let kind = token.kind;
         match kind {
             // (?doc)comments or whitespace. skip normal comments
             _ if self.filter_comment_or_whitespace(token) => (),
+            // ignore semicolons
             Semi => (),
             Ident | RawIdent => match self.parse_ident(span) {
                 Some(token) => self.push_token(token),
                 None => (),
             },
-            // TODO: allow for parsing code blocks in other areas.
-            // code block
             OpenBrace => {
                 self.push_block(self.len() as u32);
                 self.push_token(token::Token::Dummy);
             }
             // code block end
-            CloseBrace => self.set_block(token),
-            Eof => return false,
+            CloseBrace => return Either3::C(()),
+            Eof => return Either3::A(()),
             _ => self.err_unexpected(token),
         };
-        true
+
+        Either3::B(())
     }
 
-    // TODO: add handling for unset vars, when set is expected
     fn parse_ident(&mut self, span: BSpan) -> Option<token::Token> {
         let kind = match self.range(span) {
             "let" => token::DeclKind::Let,
             "const" => token::DeclKind::Const,
+            "fn" => {
+                self.parse_fn_def();
+                return None;
+            }
             _ => return self.parse_fn_call(span, true).map(Into::into),
         };
         self.parse_decl(kind).map(token::Token::from)
@@ -96,37 +114,31 @@ impl<'a> Reader<'a> {
         };
 
         // if this is C, first_span is for type, not var
-        let Some(next_token) = self.semi_or_eq_or_ident() else {
-            self.push_err(LexicalError::Eof(self.cursor.pos()));
-            return None;
-        };
+        let next_token = self.eq_or_ident();
 
         let name;
-        let mut type_name = None;
-        let mut value = None;
+        let value;
+        let type_name;
         match next_token {
-            Either3::A(()) => name = self.range(first_span),
+            Either3::A(()) => {
+                self.push_err(LexicalError::Eof(self.cursor.pos()));
+                return None;
+            }
             Either3::B(()) => {
-                let expr = self.parse_expr();
-                self.semi();
+                value = self.parse_expr();
                 name = self.range(first_span);
-                value = expr;
+                type_name = None;
             }
             Either3::C(var_span) => {
-                let Some(is_semi) = self.semi_or_eq() else {
-                    self.push_err(LexicalError::Eof(self.cursor.pos()));
-                    return None;
-                };
-                let expr = if is_semi {
-                    None
-                } else {
-                    let expr = self.parse_expr();
-                    self.semi();
-                    expr
+                value = match self.until_eq() {
+                    true => self.parse_expr(),
+                    false => {
+                        self.push_err(LexicalError::Eof(self.cursor.pos()));
+                        return None;
+                    }
                 };
                 name = self.range(var_span);
                 type_name = Some(self.symbol(first_span));
-                value = expr;
             }
         };
 
@@ -143,7 +155,7 @@ impl<'a> Reader<'a> {
         self.push_token(token::Token::Dummy);
 
         let expr = loop {
-            let next = match self.parse_params() {
+            let next = match self.parse_call_params() {
                 // Eof
                 Either3::A(()) => {
                     self.truncate(from as u32);
@@ -167,10 +179,79 @@ impl<'a> Reader<'a> {
         expr
     }
 
+    pub fn parse_fn_def(&mut self) {
+        let Some(first) = self.until_ident() else {
+            return;
+        };
+
+        let (name, type_name) = match self.until_open_paren_or_ident() {
+            Either3::A(()) => {
+                self.push_err(LexicalError::Eof(self.token_pos()));
+                return;
+            }
+            Either3::B(()) => (first, None),
+            Either3::C(_) if !self.until_open_paren() => {
+                self.push_err(LexicalError::Eof(self.token_pos()));
+                return;
+            }
+            Either3::C(span) => (span, Some(first)),
+        };
+
+        let dummy_pos = self.len() as u32;
+        self.push_token(token::Token::Dummy);
+
+        loop {
+            match self.parse_def_params() {
+                Either::A(()) => {
+                    self.truncate(dummy_pos);
+                    self.push_err(LexicalError::Eof(self.token_pos()));
+                    return;
+                }
+                Either::B((true, Some(param))) => break self.push_token(param),
+                Either::B((true, None)) => break,
+                Either::B((false, Some(param))) => self.push_token(param),
+                Either::B((false, None)) => (),
+            };
+        }
+
+        let param_start = dummy_pos + 1;
+        let param_end = self.len() as u32;
+        let param_span = TSpan {
+            from: param_start,
+            to: param_end,
+        };
+
+        if !self.until_open_brace() {
+            self.truncate(dummy_pos);
+            self.push_err(LexicalError::Eof(self.token_pos()));
+            return;
+        }
+
+        loop {
+            let token = self.cursor.advance_token();
+            match self.next_or_close_brace(token) {
+                Either3::A(()) => {
+                    self.truncate(dummy_pos as u32);
+                    self.push_err(LexicalError::Eof(self.token_pos()));
+                    return;
+                }
+                Either3::B(()) => (),
+                Either3::C(()) => break,
+            };
+        }
+
+        let token_span = TSpan {
+            from: param_end,
+            to: self.len() as u32,
+        };
+
+        self.set_fn_def(dummy_pos as usize, name, type_name, param_span, token_span);
+    }
+
     /// ..)
     ///
     /// `A` = `Eof` `B` = `CloseParen` `C` = `Param`
-    fn parse_params(&mut self) -> Either3<(), Option<token::Expr>, Option<token::Expr>> {
+    fn parse_call_params(&mut self) -> Either3<(), Option<token::Expr>, Option<token::Expr>> {
         use lex::token::TokenKind::*;
         loop {
             let token = self.cursor.advance_token();
@@ -205,6 +286,62 @@ impl<'a> Reader<'a> {
         }
     }
 
+    /// ..)
+    ///
+    /// `A` = `Eof` `B` & `true` = `CloseParen` `B` & `false` = `Param`
+    fn parse_def_params(&mut self) -> Either<(), (bool, Option<token::FnDefParam>)> {
+        use lex::token::TokenKind::*;
+        loop {
+            let token = self.cursor.advance_token();
+            let span = self.token_span(token.len);
+            match token.kind {
+                _ if self.filter_comment_or_whitespace(token) => (),
+                Comma => (),
+                CloseParen => break Either::B((true, None)),
+                // TODO: condider inlining 'parse_def_decl'
+                Ident | RawIdent => match self.parse_def_decl(span) {
+                    Either::A(()) => break Either::A(()),
+                    Either::B(val) => break Either::B(val),
+                },
+                Eof => break Either::A(()),
+                _ => self.err_unexpected(token),
+            }
+        }
+    }
+
+    /// similar to [`Self::parse_decl`], but detecting a closing paren
+    ///
+    /// `A` = `Eof` `B` & `true` = `CloseParen` `B` & `false` = `Param`
+    fn parse_def_decl(&mut self, first: BSpan) -> Either<(), (bool, Option<token::FnDefParam>)> {
+        use lex::token::TokenKind::*;
+        let Some(second) = self.until_ident() else {
+            self.push_err(LexicalError::Eof(self.token_pos()));
+            return Either::A(());
+        };
+        let (close, value) = loop {
+            let token = self.cursor.advance_token();
+            match token.kind {
+                // ignore whitespace
+                _ if self.filter_comment_or_whitespace(token) => (),
+                // parse param with default val
+                Eq => break (false, self.parse_expr()),
+                // simple param found, cont parse
+                Comma => break (false, None),
+                // all params found, stop parse
+                CloseParen => break (true, None),
+                // eof with no close, err
+                Eof => return Either::A(()),
+                _ => self.err_unexpected(token),
+            }
+        };
+        let fn_def_param = token::FnDefParam {
+            type_name: self.range(first).into(),
+            name: self.range(second).into(),
+            value,
+        };
+        Either::B((close, Some(fn_def_param)))
+    }
+
     /// Parses until an ident, returns the byte position
     fn until_ident(&mut self) -> Option<BSpan> {
         use lex::token::TokenKind::*;
@@ -221,13 +358,40 @@ impl<'a> Reader<'a> {
 
     fn until_open_paren(&mut self) -> bool {
         use lex::token::TokenKind::*;
-
         loop {
             let token = self.cursor.advance_token();
             match token.kind {
                 _ if self.filter_comment_or_whitespace(token) => (),
                 OpenParen => break true,
                 Eof => break false,
+                _ => self.err_unexpected(token),
+            }
+        }
+    }
+
+    fn until_open_brace(&mut self) -> bool {
+        use lex::token::TokenKind::*;
+        loop {
+            let token = self.cursor.advance_token();
+            match token.kind {
+                _ if self.filter_comment_or_whitespace(token) => (),
+                OpenBrace => break true,
+                Eof => break false,
+                _ => self.err_unexpected(token),
+            }
+        }
+    }
+
+    /// `A` = `Eof`, `B`, = `OpenParen`, `C` = `Ident`
+    fn until_open_paren_or_ident(&mut self) -> Either3<(), (), BSpan> {
+        use lex::token::TokenKind::*;
+        loop {
+            let token = self.cursor.advance_token();
+            match token.kind {
+                _ if self.filter_comment_or_whitespace(token) => (),
+                OpenParen => return Either3::B(()),
+                Ident | RawIdent => return Either3::C(self.token_span(token.len)),
+                Eof => return Either3::A(()),
                 _ => self.err_unexpected(token),
             }
         }
@@ -261,48 +425,30 @@ impl<'a> Reader<'a> {
         }
     }
 
-    /// A Semi, B Eq, C(len) Ident
-    fn semi_or_eq_or_ident(&mut self) -> Option<Either3<(), (), BSpan>> {
+    /// A Eof, B Eq, C(len) Ident
+    fn eq_or_ident(&mut self) -> Either3<(), (), BSpan> {
         use lex::token::TokenKind::*;
         loop {
             let token = self.cursor.advance_token();
             match token.kind {
                 _ if self.filter_comment_or_whitespace(token) => (),
-                Semi => break Some(Either3::A(())),
-                Eq => break Some(Either3::B(())),
-                Ident | RawIdent => break Some(Either3::C(self.token_span(token.len))),
-                Eof => break None,
+                Eq => break Either3::B(()),
+                Ident | RawIdent => break Either3::C(self.token_span(token.len)),
+                Eof => break Either3::A(()),
                 _ => self.err_unexpected(token),
             }
         }
     }
 
-    /// Returns true if a semicolon was found
-    fn semi_or_eq(&mut self) -> Option<bool> {
+    /// Returns true if a eq was found
+    fn until_eq(&mut self) -> bool {
         use lex::token::TokenKind::*;
         loop {
             let token = self.cursor.advance_token();
             match token.kind {
                 _ if self.filter_comment_or_whitespace(token) => (),
-                Semi => break Some(true),
-                Eq => break Some(false),
-                Eof => break None,
-                _ => self.err_unexpected(token),
-            }
-        }
-    }
-
-    fn semi(&mut self) -> bool {
-        use lex::token::TokenKind::*;
-        loop {
-            let token = self.cursor.advance_token();
-            match token.kind {
-                _ if self.filter_comment_or_whitespace(token) => (),
-                Semi => break true,
-                Eof => {
-                    self.push_err(LexicalError::MissingSemi(self.token_pos()));
-                    break false;
-                }
+                Eq => break true,
+                Eof => break false,
                 _ => self.err_unexpected(token),
             }
         }
@@ -320,6 +466,7 @@ impl<'a> Reader<'a> {
         self.push_err(LexicalError::Unexpected(self.span(span)));
     }
 
+    // TODO: consider also having a flag for parsing when there is a doc comment
     fn filter_comment_or_whitespace(&mut self, token: lex::Token) -> bool {
         use lex::TokenKind::*;
         match token.kind {

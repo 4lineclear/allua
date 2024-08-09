@@ -45,9 +45,33 @@ impl Module {
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Fn {
-    name: Symbol,
-    params: TSpan,
-    tokens: TSpan,
+    pub name: Symbol,
+    pub type_name: Option<Symbol>,
+    pub params: TSpan,
+    pub tokens: TSpan,
+}
+impl Fn {
+    pub fn new(
+        name: Symbol,
+        type_name: Option<Symbol>,
+        param_span: TSpan,
+        token_span: TSpan,
+    ) -> Self {
+        Self {
+            name,
+            type_name,
+            params: param_span,
+            tokens: token_span,
+        }
+    }
+}
+
+/// <type > <name> ?(= <value>);
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct FnDefParam {
+    pub type_name: Symbol,
+    pub name: Symbol,
+    pub value: Option<Expr>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -58,6 +82,7 @@ pub enum Token {
     Value(Value),
     Import(Import),
     Block(TSpan),
+    FnDefParam(FnDefParam),
     /// A dummy token. should never appear
     Dummy,
 }
@@ -72,7 +97,7 @@ macro_rules! token_from {
     )*};
 }
 
-token_from!(Fn, Decl, Expr, Value, Import);
+token_from!(Fn, Decl, Expr, Value, Import, FnDefParam);
 
 /// [`DeclType`] <name> ?(= <value>);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

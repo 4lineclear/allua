@@ -91,7 +91,7 @@ fn multi_err() {
             unexpected 22,23 = "#"
             unexpected 24,25 = "!"
             unclosed 25,35 = "/*/*/**/*/"
-            missing semi 35"##,
+            "##,
     );
 }
 
@@ -288,4 +288,20 @@ fn unclosed_block() {
         unclosed 12,27 = "{{print(yeah);}"
         "#,
     );
+}
+
+#[test]
+fn empty_fn() {
+    do_test!(r#"fn yeah() {}"#, ["fn", "yeah",], "",);
+    do_test!(
+        r#"fn yeah(string yeah) {}"#,
+        ["fn", "yeah", "string", "yeah",],
+        "",
+    );
+    do_test!(
+        r#"fn yeah(string yeah, string b = "") {}"#,
+        ["fn", "yeah", "string", "yeah", "string", "b", "=", "\"\"",],
+        "",
+    );
+    do_test!(r#"fn string yeah() {}"#, ["fn", "string", "yeah"], "",);
 }

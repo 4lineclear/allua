@@ -11,7 +11,7 @@ struct Writer<'a> {
     items: &'a [Token],
     pos: u32,
     out: &'a mut Vec<String>,
-    blocks: Vec<u32>,
+    closes: Vec<(u32, char)>,
 }
 
 impl<'a> Writer<'a> {
@@ -23,16 +23,29 @@ impl<'a> Writer<'a> {
         })
     }
 
-    fn write_block_end(&mut self) {
-        while self.blocks.last() == Some(&(self.pos + 1)) {
-            self.blocks.pop();
-            self.push("}");
+    fn write_close(&mut self) {
+        loop {
+            let Some(&(i, ch)) = self.closes.last() else {
+                break;
+            };
+
+            if i != self.pos + 1 {
+                break;
+            }
+            self.closes.pop();
+            self.push(String::from(ch));
         }
     }
 
     fn write_token(&mut self, token: Token) {
         match token {
-            Token::Fn(_) => todo!("fns not added yet"),
+            Token::Fn(Fn {
+                name, type_name, ..
+            }) => {
+                self.push("fn");
+                type_name.inspect(|s| self.push(s.as_str()));
+                self.push(name.as_str());
+            }
             Token::Decl(decl) => {
                 self.push(match decl.kind {
                     DeclKind::Let => "let",
@@ -54,14 +67,24 @@ impl<'a> Writer<'a> {
             Token::Import(_) => todo!("imports not added yet"),
             Token::Block(span) => {
                 self.push("{");
-                self.blocks.push(span.to);
+                self.closes.push((span.to, '}'));
             }
-            Token::Dummy => {
-                self.push("dummy");
+            Token::FnDefParam(FnDefParam {
+                type_name,
+                name,
+                value,
+            }) => {
+                self.push(type_name);
+                self.push(name);
+                if let Some(expr) = value {
+                    self.push("=");
+                    self.write_expr(expr);
+                }
             }
+            Token::Dummy => self.push("dummy"),
         };
 
-        self.write_block_end();
+        self.write_close();
     }
 
     fn write_expr(&mut self, expr: Expr) {
@@ -107,7 +130,7 @@ pub fn write_module(src: &str, module: &Module) -> Vec<String> {
         items: &module.items,
         pos: 0,
         out: &mut out,
-        blocks: Vec::new(),
+        closes: Vec::new(),
     };
 
     loop {
@@ -117,6 +140,8 @@ pub fn write_module(src: &str, module: &Module) -> Vec<String> {
         writer.write_token(token);
         writer.pos += 1;
     }
+
+    writer.write_close();
 
     out
 }
@@ -144,7 +169,6 @@ pub fn write_errs(src: &str, errs: &ErrorMulti) -> String {
                 )
             }
             Eof(pos) => writeln!(out, r#"eof {pos} "#),
-            MissingSemi(pos) => writeln!(out, r#"missing semi {pos} "#),
         }
     };
     errs.lex.iter().try_for_each(write_lex).unwrap();

@@ -7,12 +7,6 @@ mod write;
 
 const PUNCT_SRC: &str = "}()[],.@#~?:$=!<>-&|+*/^%";
 
-macro_rules! pos {
-    () => {
-        (file!(), line!(), column!())
-    };
-}
-
 fn map_errs(s: &str) -> String {
     let mut errs = String::with_capacity(s.len());
     s.trim()
@@ -36,16 +30,36 @@ fn map_tokens(tokens: &[&str]) -> Vec<String> {
         .collect::<Vec<_>>()
 }
 
+macro_rules! pos {
+    () => {
+        (function!(), line!(), column!())
+    };
+}
+
+macro_rules! function {
+    () => {{
+        fn f() {}
+        fn type_name_of<T>(_: T) -> &'static str {
+            std::any::type_name::<T>()
+        }
+        let name = type_name_of(f);
+        name.strip_suffix("::f").unwrap()
+    }};
+}
+
 macro_rules! do_test {
     ($src:expr, $expected_tokens:expr, $expected_errors:expr $(,)?) => {{
+        println!("{:?}", pos!());
         let (module, errors) = Reader::new($src).module("test");
-        // extra info here in case of failure
-        println!("testing {:?} {module:#?}", pos!());
-        let tokens = map_tokens(&$expected_tokens);
-        let errs = map_errs($expected_errors);
-        println!("tokens:\n{tokens:#?}\nerrs:\n{errs}\nsrc:\n{}\n", $src);
-        assert_eq!(tokens, write_module($src, &module));
-        assert_eq!(&errs, &write_errs($src, &errors));
+        let expected_tokens = map_tokens(&$expected_tokens);
+        let expected_errs = map_errs($expected_errors);
+        let actual_tokens = write_module($src, &module);
+        let actual_errs = write_errs($src, &errors);
+        assert_eq!(
+            expected_tokens, actual_tokens,
+            "module: {module:#?}\n\nerrors: {errors:#?}"
+        );
+        assert_eq!(&expected_errs, &actual_errs);
     }};
 }
 
@@ -308,7 +322,7 @@ fn empty_fn() {
 
 #[test]
 #[rustfmt::skip]
-fn basic_fn() {
+fn assorted_fn() {
     do_test!(
         r#"
 fn yeah() {
@@ -326,16 +340,57 @@ fn yeah() {
     );
     do_test!(
         r#"
-fn yeah() {
+fn string yeah() {
     const string hello = "Hello"
     const string world = "World"
     return "${hello}, ${world}!"
 }"#,
         [
-            "fn", "yeah",
+            "fn", "string", "yeah",
             "const", "string", "hello", "=", "\"Hello\"",
             "const", "string", "world", "=", "\"World\"",
             "return",  "\"${hello}, ${world}!\""
+        ],
+        "",
+    );
+    do_test!(
+        r#"
+fn string yeah() {
+    fn string yeah_inner() {
+        const string hello = "Hello"
+        const string world = "World"
+        return "${hello}, ${world}!"
+    }
+    return yeah_inner()
+}"#,
+        [
+            "fn", "string", "yeah",
+            "fn", "string", "yeah_inner",
+            "const", "string", "hello", "=", "\"Hello\"",
+            "const", "string", "world", "=", "\"World\"",
+            "return",  "\"${hello}, ${world}!\"",
+            "return",  "yeah_inner", "(", ")"
+        ],
+        "",
+    );
+    do_test!(
+        r#"
+fn string yeah() {
+    const string hello = "Hello"
+    const string world = "World"
+    fn string yeah_inner(string hello, string world) {
+        return "${hello}, ${world}!"
+    }
+    return yeah_inner(hello, world)
+}"#,
+        [
+            "fn", "string", "yeah",
+            "const", "string", "hello", "=", "\"Hello\"",
+            "const", "string", "world", "=", "\"World\"",
+            "fn", "string", "yeah_inner",
+            "string", "hello", "string", "world",
+            "return",  "\"${hello}, ${world}!\"",
+            "return",  "yeah_inner", "(", "hello", ",", "world", ")"
         ],
         "",
     );

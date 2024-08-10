@@ -94,6 +94,10 @@ impl<'a> Reader<'a> {
         self.tokens.truncate(len);
     }
 
+    pub fn set_return(&mut self, set_idx: usize, expr: usize) {
+        self.tokens[set_idx] = token::Token::Return(expr);
+    }
+
     pub fn set_fn_call(&mut self, set_idx: usize, symbol: Symbol, span: TSpan) {
         self.tokens[set_idx] = token::Expr::FnCall(symbol, span).into();
     }
@@ -155,6 +159,11 @@ impl<'a> Reader<'a> {
     #[must_use]
     pub fn symbol(&self, span: BSpan) -> Symbol {
         self.src()[span.from..span.to].into()
+    }
+
+    #[must_use]
+    pub fn get_token(&self, index: usize) -> Option<&token::Token> {
+        self.tokens.get(index)
     }
 
     #[must_use]

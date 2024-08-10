@@ -8,6 +8,7 @@
 // code block
 // TODO: create a compiler error type.
 // TODO: add visibility item to Fn
+// TODO: consider unifying the "different kinds" of expr syntax into one
 #![allow(clippy::cast_possible_truncation)]
 
 use crate::{
@@ -99,7 +100,17 @@ impl<'a> Reader<'a> {
                 self.parse_fn_def();
                 None
             }
-            "return" => self.parse_expr().map(token::Token::Return),
+            // NOTE: parse_expr adds fn_call in place, breaking this.
+            "return" => {
+                let set_idx = self.len();
+                self.push_token(token::Token::Dummy);
+                let Either::B(expr) = self.parse_return() else {
+                    self.truncate(set_idx);
+                    return None;
+                };
+                self.set_return(set_idx, set_idx + 1);
+                expr.map(Into::into)
+            }
             _ => self.parse_fn_call(span, true).map(Into::into),
         }
     }
@@ -283,6 +294,38 @@ impl<'a> Reader<'a> {
         }
     }
 
+    /// return ..
+    ///
+    /// `A` = `Eof`  `C` = `Param`
+    fn parse_return(&mut self) -> Either<(), Option<token::Expr>> {
+        use lex::token::TokenKind::*;
+        loop {
+            let token = self.cursor.advance_token();
+            let span = self.token_span(token.len);
+            match token.kind {
+                _ if self.filter_comment_or_whitespace(token) => (),
+                Ident | RawIdent => {
+                    let after_ident = self.cursor.advance_token();
+                    if self.filter_comment_or_whitespace(after_ident) {
+                        break Either::B(None);
+                    }
+                    match after_ident.kind {
+                        OpenParen => break Either::B(self.parse_fn_call(span, false)),
+                        Eof => break Either::A(()),
+                        _ => self.err_unexpected(after_ident),
+                    }
+                }
+                Literal { kind, suffix_start } => {
+                    let expr =
+                        Some(token::Value::new(self.symbol(span), kind, suffix_start).into());
+                    break Either::B(expr);
+                }
+                Eof => break Either::A(()),
+                _ => self.err_unexpected(token),
+            }
+        }
+    }
+
     /// ..)
     ///
     /// `A` = `Eof` `B` & `true` = `CloseParen` `B` & `false` = `Param`
@@ -295,7 +338,6 @@ impl<'a> Reader<'a> {
                 _ if self.filter_comment_or_whitespace(token) => (),
                 Comma => (),
                 CloseParen => break Either::B((true, None)),
-                // TODO: condider inlining 'parse_def_decl'
                 Ident | RawIdent => match self.parse_def_decl(span) {
                     Either::A(()) => break Either::A(()),
                     Either::B(val) => break Either::B(val),
@@ -465,6 +507,7 @@ impl<'a> Reader<'a> {
     }
 
     // TODO: consider also having a flag for parsing when there is a doc comment
+    // TODO: consider making a next_non_wc method
     fn filter_comment_or_whitespace(&mut self, token: lex::Token) -> bool {
         use lex::TokenKind::*;
         match token.kind {

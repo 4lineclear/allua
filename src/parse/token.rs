@@ -81,7 +81,7 @@ pub enum Token {
     FnDef(FnDef),
     Decl(Decl),
     Expr(Expr),
-    Return(Expr),
+    Return(usize),
     Value(Value),
     Import(Import),
     Block(TSpan),

@@ -9,6 +9,7 @@
 // TODO: create a compiler error type.
 // TODO: add visibility item to Fn
 // TODO: consider unifying the "different kinds" of expr syntax into one
+// TODO: add operators
 #![allow(clippy::cast_possible_truncation)]
 
 use crate::{
@@ -262,17 +263,19 @@ impl<'a> Reader<'a> {
     fn parse_call_params(&mut self) -> Either3<(), Option<token::Expr>, Option<token::Expr>> {
         use lex::token::TokenKind::*;
         loop {
-            let token = self.cursor.advance_token();
+            let Some(token) = self.lex_non_wc() else {
+                continue;
+            };
             let span = self.token_span(token.len);
             match token.kind {
-                _ if self.filter_comment_or_whitespace(token) => (),
                 Comma => (),
                 CloseParen => break Either3::B(None),
                 Ident | RawIdent => {
                     break loop {
-                        let after_ident = self.cursor.advance_token();
+                        let Some(after_ident) = self.lex_non_wc() else {
+                            continue;
+                        };
                         match after_ident.kind {
-                            _ if self.filter_comment_or_whitespace(after_ident) => (),
                             OpenParen => break Either3::C(self.parse_fn_call(span, false)),
                             CloseParen => {
                                 break Either3::B(Some(token::Expr::Var(self.symbol(span))))
@@ -300,15 +303,15 @@ impl<'a> Reader<'a> {
     fn parse_return(&mut self) -> Either<(), Option<token::Expr>> {
         use lex::token::TokenKind::*;
         loop {
-            let token = self.cursor.advance_token();
+            let Some(token) = self.lex_non_wc() else {
+                continue;
+            };
             let span = self.token_span(token.len);
             match token.kind {
-                _ if self.filter_comment_or_whitespace(token) => (),
                 Ident | RawIdent => {
-                    let after_ident = self.cursor.advance_token();
-                    if self.filter_comment_or_whitespace(after_ident) {
+                    let Some(after_ident) = self.lex_non_wc() else {
                         break Either::B(None);
-                    }
+                    };
                     match after_ident.kind {
                         OpenParen => break Either::B(self.parse_fn_call(span, false)),
                         Eof => break Either::A(()),
@@ -332,10 +335,11 @@ impl<'a> Reader<'a> {
     fn parse_def_params(&mut self) -> Either<(), (bool, Option<token::FnDefParam>)> {
         use lex::token::TokenKind::*;
         loop {
-            let token = self.cursor.advance_token();
+            let Some(token) = self.lex_non_wc() else {
+                continue;
+            };
             let span = self.token_span(token.len);
             match token.kind {
-                _ if self.filter_comment_or_whitespace(token) => (),
                 Comma => (),
                 CloseParen => break Either::B((true, None)),
                 Ident | RawIdent => match self.parse_def_decl(span) {
@@ -358,10 +362,10 @@ impl<'a> Reader<'a> {
             return Either::A(());
         };
         let (close, value) = loop {
-            let token = self.cursor.advance_token();
+            let Some(token) = self.lex_non_wc() else {
+                continue;
+            };
             match token.kind {
-                // ignore whitespace
-                _ if self.filter_comment_or_whitespace(token) => (),
                 // parse param with default val
                 Eq => break (false, self.parse_expr()),
                 // simple param found, cont parse
@@ -386,9 +390,10 @@ impl<'a> Reader<'a> {
         use lex::token::TokenKind::*;
 
         loop {
-            let token = self.cursor.advance_token();
+            let Some(token) = self.lex_non_wc() else {
+                continue;
+            };
             match token.kind {
-                _ if self.filter_comment_or_whitespace(token) => (),
                 Ident | RawIdent => return Some(self.token_span(token.len)),
                 Eof => return None,
                 _ => self.err_unexpected(token),
@@ -399,9 +404,10 @@ impl<'a> Reader<'a> {
     fn until_open_paren(&mut self) -> bool {
         use lex::token::TokenKind::*;
         loop {
-            let token = self.cursor.advance_token();
+            let Some(token) = self.lex_non_wc() else {
+                continue;
+            };
             match token.kind {
-                _ if self.filter_comment_or_whitespace(token) => (),
                 OpenParen => break true,
                 Eof => break false,
                 _ => self.err_unexpected(token),
@@ -412,9 +418,10 @@ impl<'a> Reader<'a> {
     fn until_open_brace(&mut self) -> bool {
         use lex::token::TokenKind::*;
         loop {
-            let token = self.cursor.advance_token();
+            let Some(token) = self.lex_non_wc() else {
+                continue;
+            };
             match token.kind {
-                _ if self.filter_comment_or_whitespace(token) => (),
                 OpenBrace => break true,
                 Eof => break false,
                 _ => self.err_unexpected(token),
@@ -426,9 +433,10 @@ impl<'a> Reader<'a> {
     fn until_open_paren_or_ident(&mut self) -> Either3<(), (), BSpan> {
         use lex::token::TokenKind::*;
         loop {
-            let token = self.cursor.advance_token();
+            let Some(token) = self.lex_non_wc() else {
+                continue;
+            };
             match token.kind {
-                _ if self.filter_comment_or_whitespace(token) => (),
                 OpenParen => return Either3::B(()),
                 Ident | RawIdent => return Either3::C(self.token_span(token.len)),
                 Eof => return Either3::A(()),
@@ -469,9 +477,10 @@ impl<'a> Reader<'a> {
     fn eq_or_ident(&mut self) -> Either3<(), (), BSpan> {
         use lex::token::TokenKind::*;
         loop {
-            let token = self.cursor.advance_token();
+            let Some(token) = self.lex_non_wc() else {
+                continue;
+            };
             match token.kind {
-                _ if self.filter_comment_or_whitespace(token) => (),
                 Eq => break Either3::B(()),
                 Ident | RawIdent => break Either3::C(self.token_span(token.len)),
                 Eof => break Either3::A(()),
@@ -484,9 +493,10 @@ impl<'a> Reader<'a> {
     fn until_eq(&mut self) -> bool {
         use lex::token::TokenKind::*;
         loop {
-            let token = self.cursor.advance_token();
+            let Some(token) = self.lex_non_wc() else {
+                continue;
+            };
             match token.kind {
-                _ if self.filter_comment_or_whitespace(token) => (),
                 Eq => break true,
                 Eof => break false,
                 _ => self.err_unexpected(token),
@@ -506,8 +516,12 @@ impl<'a> Reader<'a> {
         self.push_err(LexicalError::Unexpected(self.span(span)));
     }
 
+    fn lex_non_wc(&mut self) -> Option<lex::Token> {
+        let token = self.cursor.advance_token();
+        (!self.filter_comment_or_whitespace(token)).then_some(token)
+    }
+
     // TODO: consider also having a flag for parsing when there is a doc comment
-    // TODO: consider making a next_non_wc method
     fn filter_comment_or_whitespace(&mut self, token: lex::Token) -> bool {
         use lex::TokenKind::*;
         match token.kind {

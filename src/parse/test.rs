@@ -1,4 +1,3 @@
-// TODO: create custom tester
 use super::Reader;
 use pretty_assertions::assert_eq;
 

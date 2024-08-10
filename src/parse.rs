@@ -115,7 +115,7 @@ impl<'a> Reader<'a> {
                     self.truncate(set_idx);
                     return None;
                 };
-                self.set_return(set_idx, set_idx + 1);
+                self.set_at(set_idx, token::Token::Return(set_idx + 1));
                 expr.map(Into::into)
             }
             _ => {
@@ -173,7 +173,10 @@ impl<'a> Reader<'a> {
             }
         };
 
-        self.set_decl(dummy_pos, kind, type_name, name.into(), value);
+        self.set_at(
+            dummy_pos,
+            token::Decl::new(kind, type_name, name.into(), value),
+        );
         true
     }
 
@@ -206,7 +209,10 @@ impl<'a> Reader<'a> {
         let set_idx = from;
         let to = self.len();
         let from = from + 1;
-        self.set_fn_call(set_idx, self.symbol(span), TSpan { from, to });
+        self.set_at(
+            set_idx,
+            token::Expr::FnCall(self.symbol(span), TSpan { from, to }),
+        );
     }
 
     /// ..)
@@ -289,7 +295,7 @@ impl<'a> Reader<'a> {
 
         let param_start = dummy_pos + 1;
         let param_end = self.len();
-        let param_span = TSpan {
+        let params = TSpan {
             from: param_start,
             to: param_end,
         };
@@ -313,12 +319,20 @@ impl<'a> Reader<'a> {
             };
         }
 
-        let token_span = TSpan {
+        let tokens = TSpan {
             from: param_end,
             to: self.len(),
         };
 
-        self.set_fn_def(dummy_pos, name, type_name, param_span, token_span);
+        self.set_at(
+            dummy_pos,
+            token::FnDef {
+                name: self.symbol(name),
+                type_name: type_name.map(|span| self.symbol(span)),
+                params,
+                tokens,
+            },
+        );
     }
 
     /// return ..

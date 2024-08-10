@@ -3,13 +3,11 @@ use std::collections::HashMap;
 
 use crate::{
     error::{ErrorMulti, ErrorOnce},
-    lex::{self},
+    lex,
     parse::token,
     span::{BSpan, TSpan},
     util::Symbol,
 };
-
-use super::token::DeclKind;
 
 /// Reads tokens into a tokenstream
 #[derive(Debug)]
@@ -95,32 +93,7 @@ impl<'a> Reader<'a> {
     pub fn truncate(&mut self, len: usize) {
         self.tokens.truncate(len);
     }
-    // TODO: replace all "return" functions with a generic one accepting Into<token::Token>
 
-    pub fn set_return(&mut self, set_idx: usize, expr: usize) {
-        self.tokens[set_idx] = token::Token::Return(expr);
-    }
-
-    pub fn set_fn_call(&mut self, set_idx: usize, symbol: Symbol, span: TSpan) {
-        self.tokens[set_idx] = token::Expr::FnCall(symbol, span).into();
-    }
-
-    pub fn set_fn_def(
-        &mut self,
-        set_idx: usize,
-        name: BSpan,
-        type_name: Option<BSpan>,
-        param_span: TSpan,
-        token_span: TSpan,
-    ) {
-        self.tokens[set_idx] = token::FnDef::new(
-            self.range(name).into(),
-            type_name.map(|span| self.range(span).into()),
-            param_span,
-            token_span,
-        )
-        .into();
-    }
     /// Replace the given index with the given token
     ///
     /// # Panics
@@ -129,26 +102,6 @@ impl<'a> Reader<'a> {
     pub fn set_at(&mut self, set_idx: usize, token: impl Into<token::Token>) {
         debug_assert_eq!(self.tokens[set_idx], token::Token::Dummy);
         self.tokens[set_idx] = token.into();
-    }
-
-    pub fn set_fn_param(&mut self, set_idx: usize, type_name: Symbol, name: Symbol, value: bool) {
-        self.tokens[set_idx] = token::FnDefParam {
-            type_name,
-            name,
-            value,
-        }
-        .into();
-    }
-
-    pub fn set_decl(
-        &mut self,
-        set_idx: usize,
-        kind: DeclKind,
-        type_name: Option<Symbol>,
-        name: Symbol,
-        value: bool,
-    ) {
-        self.tokens[set_idx] = token::Decl::new(kind, type_name, name, value).into();
     }
 
     pub fn push_err(&mut self, err: impl Into<ErrorOnce>) {

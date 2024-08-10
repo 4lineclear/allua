@@ -55,10 +55,10 @@ macro_rules! do_test {
         let actual_tokens = write_module($src, &module);
         let actual_errs = write_errs($src, &errors);
         assert_eq!(
-            expected_tokens, actual_tokens,
+            actual_tokens, expected_tokens,
             "module: {module:#?}\n\nerrors: {errors:#?}"
         );
-        assert_eq!(&expected_errs, &actual_errs);
+        assert_eq!(&actual_errs, &expected_errs);
     }};
 }
 
@@ -393,4 +393,14 @@ fn string yeah() {
         ],
         "",
     );
+}
+#[test]
+fn assorted_fn_fail() {
+    do_test!(r#"fn"#, [], "eof 2",);
+    do_test!(r#"fn yeah"#, [], "eof 7",);
+    do_test!(r#"fn string yeah"#, [], "eof 14",);
+    do_test!(r#"fn string yeah("#, [], "eof 15",);
+    do_test!(r#"fn string yeah()"#, [], "eof 16",);
+    do_test!(r#"fn string yeah() {"#, [], "eof 18",);
+    do_test!(r#"fn string yeah(string yeah = ""#, [], "eof 30",);
 }

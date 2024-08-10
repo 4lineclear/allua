@@ -73,13 +73,14 @@ impl FnDef {
 pub struct FnDefParam {
     pub type_name: Symbol,
     pub name: Symbol,
-    pub value: Option<Expr>,
+    pub value: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Token {
     FnDef(FnDef),
     Decl(Decl),
+    // NOTE: never have expr be under another token, instead refer to a span, etc
     Expr(Expr),
     Return(usize),
     Value(Value),
@@ -108,17 +109,12 @@ pub struct Decl {
     pub kind: DeclKind,
     pub type_name: Option<Symbol>,
     pub name: Symbol,
-    pub value: Option<Expr>,
+    pub value: bool,
 }
 
 impl Decl {
     #[must_use]
-    pub const fn new(
-        kind: DeclKind,
-        type_name: Option<Symbol>,
-        name: Symbol,
-        value: Option<Expr>,
-    ) -> Self {
+    pub const fn new(kind: DeclKind, type_name: Option<Symbol>, name: Symbol, value: bool) -> Self {
         Self {
             kind,
             type_name,
@@ -144,10 +140,10 @@ pub struct Import {
     defer: bool,
 }
 
-/// <expr>
+/// <name>(<params>) | <var> | <value>
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Expr {
-    /// <name>(<params>...)
+    /// <name>(<params>)
     FnCall(Symbol, TSpan),
     /// <name>
     Var(Symbol),

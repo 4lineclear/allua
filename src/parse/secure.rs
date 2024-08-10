@@ -9,6 +9,8 @@ use crate::{
     util::Symbol,
 };
 
+use super::token::DeclKind;
+
 /// Reads tokens into a tokenstream
 #[derive(Debug)]
 pub struct Reader<'a> {
@@ -93,6 +95,7 @@ impl<'a> Reader<'a> {
     pub fn truncate(&mut self, len: usize) {
         self.tokens.truncate(len);
     }
+    // TODO: replace all "return" functions with a generic one accepting Into<token::Token>
 
     pub fn set_return(&mut self, set_idx: usize, expr: usize) {
         self.tokens[set_idx] = token::Token::Return(expr);
@@ -117,6 +120,35 @@ impl<'a> Reader<'a> {
             token_span,
         )
         .into();
+    }
+    /// Replace the given index with the given token
+    ///
+    /// # Panics
+    ///
+    /// Invalid index given or, when in debug, token at index was not dummy
+    pub fn set_at(&mut self, set_idx: usize, token: impl Into<token::Token>) {
+        debug_assert_eq!(self.tokens[set_idx], token::Token::Dummy);
+        self.tokens[set_idx] = token.into();
+    }
+
+    pub fn set_fn_param(&mut self, set_idx: usize, type_name: Symbol, name: Symbol, value: bool) {
+        self.tokens[set_idx] = token::FnDefParam {
+            type_name,
+            name,
+            value,
+        }
+        .into();
+    }
+
+    pub fn set_decl(
+        &mut self,
+        set_idx: usize,
+        kind: DeclKind,
+        type_name: Option<Symbol>,
+        name: Symbol,
+        value: bool,
+    ) {
+        self.tokens[set_idx] = token::Decl::new(kind, type_name, name, value).into();
     }
 
     pub fn push_err(&mut self, err: impl Into<ErrorOnce>) {
@@ -162,8 +194,13 @@ impl<'a> Reader<'a> {
     }
 
     #[must_use]
-    pub fn get_token(&self, index: usize) -> Option<&token::Token> {
-        self.tokens.get(index)
+    pub fn get_token(&self, index: usize) -> Option<token::Token> {
+        self.tokens.get(index).copied()
+    }
+
+    #[must_use]
+    pub fn last_token(&self) -> Option<token::Token> {
+        self.tokens.last().copied()
     }
 
     #[must_use]

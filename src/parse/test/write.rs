@@ -58,9 +58,8 @@ impl<'a> Writer<'a> {
                 }
                 self.push(decl.name.as_str());
 
-                if let Some(expr) = decl.value {
+                if decl.value {
                     self.push("=");
-                    self.write_expr(expr);
                 }
             }
             Token::Expr(expr) => self.write_expr(expr),
@@ -78,9 +77,8 @@ impl<'a> Writer<'a> {
             }) => {
                 self.push(type_name);
                 self.push(name);
-                if let Some(expr) = value {
+                if value {
                     self.push("=");
-                    self.write_expr(expr);
                 }
             }
             Token::Dummy => self.push("dummy"),

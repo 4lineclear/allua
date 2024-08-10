@@ -1,4 +1,3 @@
-// TODO: add raw idents back in eventually.
 // TODO: create pattern-composer macro
 // TODO: consider adding system where doc comments can be anywhere?
 // maybe change how doc comments are considered compared to rust.

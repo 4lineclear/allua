@@ -106,7 +106,7 @@ impl<'a> Reader<'a> {
         param_span: TSpan,
         token_span: TSpan,
     ) {
-        self.tokens[set_idx] = token::Fn::new(
+        self.tokens[set_idx] = token::FnDef::new(
             self.range(name).into(),
             type_name.map(|span| self.range(span).into()),
             param_span,

@@ -94,16 +94,18 @@ impl<'a> Reader<'a> {
     }
 
     fn parse_ident(&mut self, span: BSpan) -> Option<token::Token> {
-        let kind = match self.range(span) {
-            "let" => token::DeclKind::Let,
-            "const" => token::DeclKind::Const,
+        match self.range(span) {
+            "let" => self.parse_decl(token::DeclKind::Let).map(Into::into),
+            "const" => self.parse_decl(token::DeclKind::Const).map(Into::into),
             "fn" => {
                 self.parse_fn_def();
-                return None;
+                None
             }
-            _ => return self.parse_fn_call(span, true).map(Into::into),
-        };
-        self.parse_decl(kind).map(token::Token::from)
+            "return" => self
+                .parse_expr()
+                .map(|expr| token::Token::Return(expr).into()),
+            _ => self.parse_fn_call(span, true).map(Into::into),
+        }
     }
 
     fn parse_decl(&mut self, kind: token::DeclKind) -> Option<token::Decl> {

@@ -1,3 +1,4 @@
+// TODO: add detail to printing
 use crate::{
     error::ErrorMulti,
     parse::token::{Module, *},
@@ -39,7 +40,7 @@ impl<'a> Writer<'a> {
 
     fn write_token(&mut self, token: Token) {
         match token {
-            Token::Fn(Fn {
+            Token::FnDef(FnDef {
                 name, type_name, ..
             }) => {
                 self.push("fn");
@@ -63,6 +64,10 @@ impl<'a> Writer<'a> {
                 }
             }
             Token::Expr(expr) => self.write_expr(expr),
+            Token::Return(expr) => {
+                self.push("return");
+                self.write_expr(expr);
+            }
             Token::Value(val) => self.write_val(val),
             Token::Import(_) => todo!("imports not added yet"),
             Token::Block(span) => {

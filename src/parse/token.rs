@@ -44,13 +44,14 @@ impl Module {
 /// end
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Fn {
+pub struct FnDef {
     pub name: Symbol,
     pub type_name: Option<Symbol>,
     pub params: TSpan,
     pub tokens: TSpan,
 }
-impl Fn {
+
+impl FnDef {
     #[must_use]
     pub const fn new(
         name: Symbol,
@@ -77,14 +78,15 @@ pub struct FnDefParam {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Token {
-    Fn(Fn),
+    FnDef(FnDef),
     Decl(Decl),
     Expr(Expr),
+    Return(Expr),
     Value(Value),
     Import(Import),
     Block(TSpan),
     FnDefParam(FnDefParam),
-    /// A dummy token. should never appear
+    /// A dummy token. should never appear in the final output.
     Dummy,
 }
 
@@ -98,7 +100,7 @@ macro_rules! token_from {
     )*};
 }
 
-token_from!(Fn, Decl, Expr, Value, Import, FnDefParam);
+token_from!(FnDef, Decl, Expr, Value, Import, FnDefParam);
 
 /// [`DeclType`] <name> ?(= <value>);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

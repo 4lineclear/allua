@@ -308,19 +308,34 @@ fn empty_fn() {
 
 #[test]
 #[rustfmt::skip]
-fn basic_fn_1() {
+fn basic_fn() {
     do_test!(
         r#"
 fn yeah() {
     const string hello = "Hello"
     const string world = "World"
-    print("{hello}, {world}!")
+    print("${hello}, ${world}!")
 }"#,
         [
             "fn", "yeah",
             "const", "string", "hello", "=", "\"Hello\"",
             "const", "string", "world", "=", "\"World\"",
-            "print", "(", "\"{hello}, {world}!\"", ")"
+            "print", "(", "\"${hello}, ${world}!\"", ")"
+        ],
+        "",
+    );
+    do_test!(
+        r#"
+fn yeah() {
+    const string hello = "Hello"
+    const string world = "World"
+    return "${hello}, ${world}!"
+}"#,
+        [
+            "fn", "yeah",
+            "const", "string", "hello", "=", "\"Hello\"",
+            "const", "string", "world", "=", "\"World\"",
+            "return",  "\"${hello}, ${world}!\""
         ],
         "",
     );

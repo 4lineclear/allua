@@ -45,7 +45,7 @@ pub fn is_ident(s: &str) -> bool {
 ///
 /// Panics if the given `prefix_len` is incorrect
 #[inline]
-pub fn validate_raw_str(input: &str, prefix_len: u32) -> Result<(), RawStrError> {
+pub fn validate_raw_str(input: &str, prefix_len: usize) -> Result<(), RawStrError> {
     debug_assert!(!input.is_empty());
     let mut cursor = Cursor::new(input);
     // Move past the leading `r` or `br`.
@@ -479,7 +479,7 @@ impl Cursor<'_> {
     }
 
     /// Eats the double-quoted string and returns `n_hashes` and an error if encountered.
-    fn raw_double_quoted_string(&mut self, prefix_len: u32) -> Result<u8, RawStrError> {
+    fn raw_double_quoted_string(&mut self, prefix_len: usize) -> Result<u8, RawStrError> {
         // Wrap the actual function to handle the error with too many hashes.
         // This way, it eats the whole raw string.
         let n_hashes = self.raw_string_unvalidated(prefix_len)?;
@@ -487,7 +487,7 @@ impl Cursor<'_> {
         u8::try_from(n_hashes).map_err(|_| RawStrError::TooManyDelimiters { found: n_hashes })
     }
 
-    fn raw_string_unvalidated(&mut self, prefix_len: u32) -> Result<u32, RawStrError> {
+    fn raw_string_unvalidated(&mut self, prefix_len: usize) -> Result<usize, RawStrError> {
         debug_assert!(self.prev() == 'r');
         let start_pos = self.pos_within_token();
         let mut possible_terminator_offset = None;

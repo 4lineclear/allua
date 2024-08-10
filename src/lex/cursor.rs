@@ -10,7 +10,7 @@ use super::{token::TokenKind, Token};
 /// and position can be shifted forward via `bump` method.
 #[derive(Debug)]
 pub struct Cursor<'a> {
-    pub(super) token_pos: u32,
+    pub(super) token_pos: usize,
     len_remaining: usize,
     src: &'a str,
     chars: Chars<'a>,
@@ -44,14 +44,14 @@ impl Cursor<'_> {
     }
 
     #[must_use]
-    #[allow(clippy::cast_possible_truncation)]
-    pub fn pos(&self) -> u32 {
-        (self.src.len() - self.chars.as_str().len()) as u32
+    // #[allow(clippy::cast_possible_truncation)]
+    pub fn pos(&self) -> usize {
+        self.src.len() - self.chars.as_str().len()
     }
 
     /// the position of the start of the previous token
     #[must_use]
-    pub const fn token_pos(&self) -> u32 {
+    pub const fn token_pos(&self) -> usize {
         self.token_pos
     }
 
@@ -113,8 +113,8 @@ impl Cursor<'_> {
     /// Returns amount of already consumed symbols.
     #[must_use]
     #[allow(clippy::cast_possible_truncation)]
-    pub fn pos_within_token(&self) -> u32 {
-        (self.len_remaining - self.chars.as_str().len()) as u32
+    pub fn pos_within_token(&self) -> usize {
+        self.len_remaining - self.chars.as_str().len()
     }
 
     /// Resets the number of bytes consumed to 0.

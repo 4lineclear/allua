@@ -2,14 +2,12 @@
 // TODO: consider adding system where doc comments can be anywhere?
 // maybe change how doc comments are considered compared to rust.
 // TODO: consider using u64 or usize over u32
-// TODO: consider rewriting the below.
+// TODO: consider rewriting everything
 // TODO: add tuples
-// TODO: consider removing semicolons, replacing them with nl
 // TODO: allow for parsing code blocks in other areas.
 // code block
 // TODO: create a compiler error type.
 // TODO: add visibility item to Fn
-// TODO: add return keyword
 #![allow(clippy::cast_possible_truncation)]
 
 use crate::{
@@ -48,7 +46,7 @@ impl<'a> Reader<'a> {
             };
             let span = BSpan::new(span.from, cursor.pos());
             errors.push(LexicalError::Unclosed(span));
-            tokens.truncate(pos as usize);
+            tokens.truncate(pos);
         }
 
         (token::Module::new(name, tokens), errors)
@@ -81,7 +79,7 @@ impl<'a> Reader<'a> {
                 None => (),
             },
             OpenBrace => {
-                self.push_block(self.len() as u32);
+                self.push_block(self.len());
                 self.push_token(token::Token::Dummy);
             }
             // code block end
@@ -101,9 +99,7 @@ impl<'a> Reader<'a> {
                 self.parse_fn_def();
                 None
             }
-            "return" => self
-                .parse_expr()
-                .map(|expr| token::Token::Return(expr).into()),
+            "return" => self.parse_expr().map(token::Token::Return),
             _ => self.parse_fn_call(span, true).map(Into::into),
         }
     }
@@ -159,7 +155,7 @@ impl<'a> Reader<'a> {
             let next = match self.parse_call_params() {
                 // Eof
                 Either3::A(()) => {
-                    self.truncate(from as u32);
+                    self.truncate(from);
                     self.push_err(LexicalError::Eof(self.token_pos()));
                     return None;
                 }
@@ -173,8 +169,8 @@ impl<'a> Reader<'a> {
         };
 
         let set_idx = from;
-        let to = self.len() as u32 + u32::from(expr.is_some());
-        let from = from as u32 + 1;
+        let to = self.len() + usize::from(expr.is_some());
+        let from = from + 1;
         self.set_fn_call(set_idx, self.symbol(span), TSpan { from, to });
 
         expr
@@ -198,7 +194,7 @@ impl<'a> Reader<'a> {
             Either3::C(span) => (span, Some(first)),
         };
 
-        let dummy_pos = self.len() as u32;
+        let dummy_pos = self.len();
         self.push_token(token::Token::Dummy);
 
         loop {
@@ -216,7 +212,7 @@ impl<'a> Reader<'a> {
         }
 
         let param_start = dummy_pos + 1;
-        let param_end = self.len() as u32;
+        let param_end = self.len();
         let param_span = TSpan {
             from: param_start,
             to: param_end,
@@ -243,10 +239,10 @@ impl<'a> Reader<'a> {
 
         let token_span = TSpan {
             from: param_end,
-            to: self.len() as u32,
+            to: self.len(),
         };
 
-        self.set_fn_def(dummy_pos as usize, name, type_name, param_span, token_span);
+        self.set_fn_def(dummy_pos, name, type_name, param_span, token_span);
     }
 
     /// ..)
@@ -505,14 +501,14 @@ pub enum Either4<A, B, C, D> {
 
 enum AsBSpan {
     // Current span used as start
-    Len(u32),
+    Len(usize),
     Token(lex::Token),
     // Uses given
     Span(BSpan),
 }
 
-impl From<u32> for AsBSpan {
-    fn from(value: u32) -> Self {
+impl From<usize> for AsBSpan {
+    fn from(value: usize) -> Self {
         Self::Len(value)
     }
 }

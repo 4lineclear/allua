@@ -165,12 +165,12 @@ impl From<Value> for Expr {
 pub struct Value {
     pub value: Symbol,
     pub kind: lex::LiteralKind,
-    pub suffix_start: u32,
+    pub suffix_start: usize,
 }
 
 impl Value {
     #[must_use]
-    pub const fn new(value: Symbol, kind: lex::LiteralKind, suffix_start: u32) -> Self {
+    pub const fn new(value: Symbol, kind: lex::LiteralKind, suffix_start: usize) -> Self {
         Self {
             value,
             kind,

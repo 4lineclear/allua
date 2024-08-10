@@ -92,7 +92,7 @@ fn test_too_many_hashes() {
     check_raw_str(
         &s2,
         Err(RawStrError::TooManyDelimiters {
-            found: u32::from(max_count) + 1,
+            found: usize::from(max_count) + 1,
         }),
     );
 }

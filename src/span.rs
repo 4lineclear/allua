@@ -3,17 +3,17 @@
 /// A byte span
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BSpan {
-    pub from: u32,
-    pub to: u32,
+    pub from: usize,
+    pub to: usize,
 }
 
 impl BSpan {
     #[must_use]
-    pub const fn new(from: u32, to: u32) -> Self {
+    pub const fn new(from: usize, to: usize) -> Self {
         Self { from, to }
     }
     #[must_use]
-    pub const fn from_len(from: u32, len: u32) -> Self {
+    pub const fn from_len(from: usize, len: usize) -> Self {
         Self::new(from, from + len)
     }
 }
@@ -21,8 +21,8 @@ impl BSpan {
 /// A token span
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TSpan {
-    pub from: u32,
-    pub to: u32,
+    pub from: usize,
+    pub to: usize,
 }
 
 impl BSpan {

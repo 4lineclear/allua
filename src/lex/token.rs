@@ -6,12 +6,12 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Token {
     pub kind: TokenKind,
-    pub len: u32,
+    pub len: usize,
 }
 
 impl Token {
     #[must_use]
-    pub const fn new(kind: TokenKind, len: u32) -> Self {
+    pub const fn new(kind: TokenKind, len: usize) -> Self {
         Self { kind, len }
     }
 }
@@ -56,7 +56,7 @@ pub enum TokenKind {
     /// See [`LiteralKind`] for more details.
     Literal {
         kind: LiteralKind,
-        suffix_start: u32,
+        suffix_start: usize,
     },
 
     // One-char tokens:
@@ -227,12 +227,12 @@ pub enum RawStrError {
     /// `possible_terminator_offset` is the number of characters after `r` or
     /// `br` where they may have intended to terminate it.
     NoTerminator {
-        expected: u32,
-        found: u32,
-        possible_terminator_offset: Option<u32>,
+        expected: usize,
+        found: usize,
+        possible_terminator_offset: Option<usize>,
     },
     /// More than 255 `#`s exist.
-    TooManyDelimiters { found: u32 },
+    TooManyDelimiters { found: usize },
 }
 
 /// Base of numeric literal encoding according to its prefix.

@@ -10,9 +10,9 @@ struct Writer<'a> {
     #[allow(dead_code)]
     src: &'a str,
     items: &'a [Token],
-    pos: u32,
+    pos: usize,
     out: &'a mut Vec<String>,
-    closes: Vec<(u32, char)>,
+    closes: Vec<(usize, char)>,
 }
 
 impl<'a> Writer<'a> {

@@ -15,9 +15,9 @@ pub struct Reader<'a> {
     pub cursor: lex::Cursor<'a>,
     errors: ErrorMulti,
     tokens: Vec<token::Token>,
-    block_spans: HashMap<u32, BSpan>,
+    block_spans: HashMap<usize, BSpan>,
     /// a backlog of blocks
-    blocks: Vec<u32>,
+    blocks: Vec<usize>,
 }
 
 impl<'a> Reader<'a> {
@@ -39,8 +39,8 @@ impl<'a> Reader<'a> {
         lex::Cursor<'a>,
         ErrorMulti,
         Vec<token::Token>,
-        HashMap<u32, BSpan>,
-        Vec<u32>,
+        HashMap<usize, BSpan>,
+        Vec<usize>,
     ) {
         let Reader {
             cursor,
@@ -59,9 +59,9 @@ impl<'a> Reader<'a> {
             return;
         };
 
-        self.tokens[pos as usize] = token::Token::Block(TSpan {
+        self.tokens[pos] = token::Token::Block(TSpan {
             from: pos,
-            to: self.len() as u32,
+            to: self.len(),
         });
 
         let Some(it) = self.block_spans.get_mut(&pos) else {
@@ -74,7 +74,7 @@ impl<'a> Reader<'a> {
         it.to = self.cursor.pos();
     }
 
-    pub fn push_block(&mut self, pos: u32) {
+    pub fn push_block(&mut self, pos: usize) {
         self.blocks.push(pos);
         self.block_spans
             .insert(pos, BSpan::new(self.token_pos(), self.cursor.pos()));
@@ -90,8 +90,8 @@ impl<'a> Reader<'a> {
         self.tokens.is_empty()
     }
 
-    pub fn truncate(&mut self, len: u32) {
-        self.tokens.truncate(len as usize);
+    pub fn truncate(&mut self, len: usize) {
+        self.tokens.truncate(len);
     }
 
     pub fn set_fn_call(&mut self, set_idx: usize, symbol: Symbol, span: TSpan) {
@@ -135,7 +135,7 @@ impl<'a> Reader<'a> {
     #[allow(dead_code)]
     #[must_use]
     fn current_char(&self) -> char {
-        let pos = self.token_pos() as usize;
+        let pos = self.token_pos();
         self.src()[pos..]
             .chars()
             .next()
@@ -143,27 +143,27 @@ impl<'a> Reader<'a> {
     }
 
     #[must_use]
-    pub fn current_range(&self, len: u32) -> &str {
+    pub fn current_range(&self, len: usize) -> &str {
         self.range(self.token_span(len))
     }
 
     #[must_use]
     pub fn range(&self, span: BSpan) -> &str {
-        &self.src()[span.from as usize..span.to as usize]
+        &self.src()[span.from..span.to]
     }
 
     #[must_use]
     pub fn symbol(&self, span: BSpan) -> Symbol {
-        self.src()[span.from as usize..span.to as usize].into()
+        self.src()[span.from..span.to].into()
     }
 
     #[must_use]
-    pub const fn token_pos(&self) -> u32 {
+    pub const fn token_pos(&self) -> usize {
         self.cursor.token_pos()
     }
 
     #[must_use]
-    pub const fn token_span(&self, len: u32) -> BSpan {
+    pub const fn token_span(&self, len: usize) -> BSpan {
         BSpan::new(self.token_pos(), self.token_pos() + len)
     }
 }

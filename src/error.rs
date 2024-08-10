@@ -56,7 +56,7 @@ pub enum LexicalError {
     /// (start inclusive, end exclusive)
     Unexpected(BSpan),
     /// Expected a token, eof found, should be extended in the future
-    Eof(u32),
+    Eof(usize),
 }
 
 impl Display for ErrorOnce {

@@ -78,6 +78,7 @@ pub struct FnDefParam {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Token {
+    Flow(Flow),
     FnDef(FnDef),
     Decl(Decl),
     // NOTE: never have expr be under another token, instead refer to a span, etc
@@ -102,6 +103,13 @@ macro_rules! token_from {
 }
 
 token_from!(FnDef, Decl, Expr, Value, Import, FnDefParam);
+
+/// Control flow
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Flow {
+    If(TSpan, bool),
+    While(TSpan),
+}
 
 /// [`DeclType`] <name> ?(= <value>);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

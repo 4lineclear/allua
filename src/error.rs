@@ -1,6 +1,7 @@
 use std::error::Error as StdError;
 use std::fmt::Display;
 
+use crate::lex;
 use crate::span::BSpan;
 
 // NOTE: types of errors:
@@ -55,6 +56,8 @@ pub enum LexicalError {
     Unclosed(BSpan),
     /// (start inclusive, end exclusive)
     Unexpected(BSpan),
+    /// (start inclusive, end exclusive)
+    Expected(BSpan, lex::TokenKind),
     /// Expected a token, eof found, should be extended in the future
     Eof(usize),
 }

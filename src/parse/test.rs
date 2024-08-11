@@ -87,8 +87,8 @@ fn let_punct_fail() {
         &("let ".to_owned() + PUNCT_SRC),
         [],
         r#"
-            unexpected 4,29 = "}()[],.@#~?:$=!<>-&|+*/^%"
-            eof 29"#,
+        expected pos 4,5 to be "ident" but was "}"
+        unexpected 5,29 = "()[],.@#~?:$=!<>-&|+*/^%""#,
     );
 }
 
@@ -189,7 +189,7 @@ fn fn_fail_single_param() {
         eof 12
         eof 12"#,
     );
-    do_test!(r#"print"#, [], r#"unexpected 0,5 = "print""#);
+    do_test!(r#"print"#, [], r#"eof 5"#);
 }
 
 #[test]

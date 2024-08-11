@@ -82,6 +82,7 @@ impl<'a> Writer<'a> {
                 }
             }
             Token::Dummy => self.push("dummy"),
+            Token::Flow(_) => todo!("control flow not added yet"),
         };
 
         self.write_close();
@@ -166,6 +167,17 @@ pub fn write_errs(src: &str, errs: &ErrorMulti) -> String {
                     out,
                     r#"unexpected {},{} = "{}" "#,
                     s.from, s.to, &src[range]
+                )
+            }
+            Expected(s, token) => {
+                let range = s.from as usize..s.to as usize;
+                writeln!(
+                    out,
+                    r#"expected pos {},{} to be "{}" but was "{}" "#,
+                    s.from,
+                    s.to,
+                    token.name(),
+                    &src[range]
                 )
             }
             Eof(pos) => writeln!(out, r#"eof {pos} "#),

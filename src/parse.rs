@@ -471,128 +471,43 @@ impl<'a> Reader<'a> {
 
     /// `A(true)` if eof, `A(true)` if non ident, else `B(Ident)`
     fn ident(&mut self) -> Filtered<BSpan> {
-        use lex::token::TokenKind::*;
-
-        loop {
-            let Some(token) = self.lex_non_wc() else {
-                continue;
-            };
-            break match token.kind {
-                Ident | RawIdent => self.span(token).into(),
-                Eof => {
-                    self.err_eof();
-                    InputEnd
-                }
-                _ => {
-                    self.err_expected(token, [Ident, RawIdent]);
-                    OtherToken(token)
-                }
-            };
-        }
+        look_for!(match (self, token, [Ident, RawIdent]) {
+            Ident | RawIdent => break self.span(token).into(),
+        })
     }
 
     fn open_paren(&mut self) -> Filtered<()> {
-        use lex::token::TokenKind::*;
-        loop {
-            let Some(token) = self.lex_non_wc() else {
-                continue;
-            };
-            break match token.kind {
-                OpenParen => ().into(),
-                Eof => {
-                    self.err_eof();
-                    InputEnd
-                }
-                _ => {
-                    self.err_expected(token, [OpenParen]);
-                    OtherToken(token)
-                }
-            };
-        }
+        look_for!(match (self, token, [OpenParen]) {
+            OpenParen => break (()).into(),
+        })
     }
 
     fn open_brace(&mut self) -> Filtered<()> {
-        use lex::token::TokenKind::*;
-        loop {
-            let Some(token) = self.lex_non_wc() else {
-                continue;
-            };
-            break match token.kind {
-                OpenBrace => ().into(),
-                Eof => {
-                    self.err_eof();
-                    InputEnd
-                }
-                _ => {
-                    self.err_expected(token, [OpenBrace]);
-                    OtherToken(token)
-                }
-            };
-        }
+        look_for!(match (self, token, [OpenBrace]) {
+            OpenBrace => break (()).into(),
+        })
     }
 
     /// `A` = `OpenParen`, `C` = `Ident`
     fn open_paren_or_ident(&mut self) -> Filtered<Either<(), BSpan>> {
-        use lex::token::TokenKind::*;
-        loop {
-            let Some(token) = self.lex_non_wc() else {
-                continue;
-            };
-            match token.kind {
-                OpenParen => return Either::A(()).into(),
-                Ident | RawIdent => return Either::B(self.span(token)).into(),
-                Eof => {
-                    self.err_eof();
-                    return InputEnd;
-                }
-                _ => {
-                    self.err_expected(token, [OpenParen, Ident, RawIdent]);
-                    break OtherToken(token);
-                }
-            }
-        }
+        look_for!(match (self, token, [OpenParen, Ident]) {
+            OpenParen => break Either::A(()).into(),
+            Ident | RawIdent => return Either::B(self.span(token)).into(),
+        })
     }
 
     /// `A` `Eq`, `B(len)` `Ident`
     fn eq_or_ident(&mut self) -> Filtered<Either<(), BSpan>> {
-        use lex::token::TokenKind::*;
-        loop {
-            let Some(token) = self.lex_non_wc() else {
-                continue;
-            };
-            break match token.kind {
-                Eq => Either::A(()).into(),
-                Ident | RawIdent => Either::B(self.span(token)).into(),
-                Eof => {
-                    self.err_eof();
-                    InputEnd
-                }
-                _ => {
-                    self.err_expected(token, [Eq, Ident, RawIdent]);
-                    OtherToken(token)
-                }
-            };
-        }
+        look_for!(match (self, token, [Eq, Ident]) {
+            Eq => break Either::A(()).into(),
+            Ident | RawIdent => break Either::B(self.span(token)).into(),
+        })
     }
 
     fn until_eq(&mut self) -> Filtered<()> {
-        use lex::token::TokenKind::*;
-        loop {
-            let Some(token) = self.lex_non_wc() else {
-                continue;
-            };
-            break match token.kind {
-                Eq => ().into(),
-                Eof => {
-                    self.err_eof();
-                    InputEnd
-                }
-                _ => {
-                    self.err_expected(token, [Eq]);
-                    OtherToken(token)
-                }
-            };
-        }
+        look_for!(match (self, token, [Eq]) {
+            Eq => break (()).into(),
+        })
     }
 
     fn err_expected(&mut self, span: impl Into<AsBSpan>, expected: impl Into<Vec<lex::TokenKind>>) {
@@ -701,3 +616,29 @@ impl From<BSpan> for AsBSpan {
         Self::Span(value)
     }
 }
+
+macro_rules! look_for {
+    (match ($this:ident, $token:ident, $expected: tt) {
+        $($matcher:pat $(if $pred:expr)* => $result:expr),* $(,)?
+    }) => {{
+        use lex::token::TokenKind::*;
+        loop {
+            let Some($token) = $this.lex_non_wc() else {
+                continue;
+            };
+            match $token.kind {
+                $($matcher $(if $pred)* => $result,)*
+                Eof => {
+                    $this.err_eof();
+                    break InputEnd;
+                }
+                _ => {
+                    $this.err_expected($token, $expected);
+                    break OtherToken($token);
+                }
+            }
+        }
+    }};
+}
+
+use look_for;

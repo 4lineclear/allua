@@ -90,7 +90,10 @@ impl<'a> Reader<'a> {
             // code block end
             CloseBrace => return Either3::C(()),
             Eof => return Either3::A(()),
-            _ => self.err_unexpected(token),
+            _ => match self.blocks_left() {
+                true => self.err_expected(token, [Ident, RawIdent, OpenBrace, CloseBrace, Eof]),
+                false => self.err_expected(token, [Ident, RawIdent, OpenBrace, Eof]),
+            },
         };
 
         Either3::B(())
@@ -172,18 +175,13 @@ impl<'a> Reader<'a> {
 
         loop {
             match self.parse_call_params() {
-                Either3::A(()) => {
+                Correct(true) => break,
+                Correct(false) => (),
+                InputEnd | OtherToken(_) => {
                     self.truncate(from);
                     self.err_eof();
                     return;
                 }
-                Either3::B(Some(expr)) => {
-                    self.push_token(expr);
-                    break;
-                }
-                Either3::B(None) => break,
-                Either3::C(Some(expr)) => self.push_token(expr),
-                Either3::C(None) => (),
             };
         }
 
@@ -196,51 +194,71 @@ impl<'a> Reader<'a> {
         );
     }
 
+    // TODO: have the below use Filtered
+    //
     /// ..)
     ///
-    /// `A` = `Eof` `B` = `CloseParen` `C` = `Param`
-    fn parse_call_params(&mut self) -> Either3<(), Option<token::Expr>, Option<token::Expr>> {
+    /// `true` = `CloseParen`
+    fn parse_call_params(&mut self) -> Filtered<bool> {
+        // TODO: consider not returning a, token
         use lex::token::TokenKind::*;
         loop {
             let Some(token) = self.lex_non_wc() else {
                 continue;
             };
-            let span = self.span(token);
-            match token.kind {
-                Comma => (),
-                CloseParen => break Either3::B(None),
-                Ident | RawIdent => {
-                    break loop {
-                        let Some(after_ident) = self.lex_non_wc() else {
-                            continue;
-                        };
-                        match after_ident.kind {
-                            OpenParen => {
-                                self.parse_fn_call(span, false);
-                                break Either3::C(None);
-                            }
-                            CloseParen => {
-                                break Either3::B(Some(token::Expr::Var(self.symbol(span))))
-                            }
-                            Comma => break Either3::C(Some(token::Expr::Var(self.symbol(span)))),
-                            Eof => break Either3::A(()),
-                            _ => self.err_unexpected(after_ident),
-                        }
-                    }
-                }
-                Literal { kind, suffix_start } => {
-                    let expr =
-                        Some(token::Value::new(self.symbol(span), kind, suffix_start).into());
-                    break Either3::C(expr);
-                }
-                Eof => break Either3::A(()),
-                _ => self.err_unexpected(token),
+            if let Comma = token.kind {
+                continue;
             }
+            break match token.kind {
+                CloseParen => true.into(),
+                Ident | RawIdent => self.parse_call_param_ident(self.span(token)),
+                Literal { kind, suffix_start } => {
+                    self.push_token(token::Value::new(
+                        self.symbol(self.span(token)),
+                        kind,
+                        suffix_start,
+                    ));
+                    false.into()
+                }
+                Eof => InputEnd,
+                _ => {
+                    self.err_expected(token, [Comma, CloseParen, Ident, RawIdent, LITERAL]);
+                    OtherToken(token)
+                }
+            };
+        }
+    }
+
+    fn parse_call_param_ident(&mut self, ident: BSpan) -> Filtered<bool> {
+        use lex::token::TokenKind::*;
+        loop {
+            let Some(token) = self.lex_non_wc() else {
+                continue;
+            };
+            break match token.kind {
+                OpenParen => {
+                    self.parse_fn_call(ident, false);
+                    false.into()
+                }
+                CloseParen => {
+                    self.push_token(token::Expr::Var(self.symbol(ident)));
+                    true.into()
+                }
+                Comma => {
+                    self.push_token(token::Expr::Var(self.symbol(ident)));
+                    false.into()
+                }
+                Eof => InputEnd,
+                _ => {
+                    self.err_expected(token, [OpenParen, CloseParen, Comma, Eof]);
+                    OtherToken(token)
+                }
+            };
         }
     }
 
     /// `fn` (?`<type>`) `<name>` ((?`<param>`?,)) { (?`<token>`?,) }
-    pub fn parse_fn_def(&mut self) {
+    fn parse_fn_def(&mut self) {
         let Correct(first) = self.ident() else {
             return;
         };
@@ -334,7 +352,7 @@ impl<'a> Reader<'a> {
                             InputEnd
                         }
                         _ => {
-                            self.err_unexpected(after_ident);
+                            self.err_expected(token, [CloseParen]);
                             OtherToken(token)
                         }
                     };
@@ -348,7 +366,7 @@ impl<'a> Reader<'a> {
                     InputEnd
                 }
                 _ => {
-                    self.err_unexpected(token);
+                    self.err_expected(token, [Ident, RawIdent, LITERAL]);
                     OtherToken(token)
                 }
             };
@@ -375,7 +393,7 @@ impl<'a> Reader<'a> {
                     InputEnd
                 }
                 _ => {
-                    self.err_unexpected(token);
+                    self.err_expected(token, [Ident, RawIdent, CloseParen]);
                     OtherToken(token)
                 }
             };
@@ -413,7 +431,7 @@ impl<'a> Reader<'a> {
                     return InputEnd;
                 }
                 _ => {
-                    self.err_unexpected(token);
+                    self.err_expected(token, [Eq, Comma, CloseParen]);
                     return OtherToken(token);
                 }
             }
@@ -446,7 +464,7 @@ impl<'a> Reader<'a> {
                     )))
                 }
                 Eof => break,
-                _ => self.err_unexpected(token),
+                _ => self.err_expected(token, [Ident, RawIdent, LITERAL]),
             }
         }
     }
@@ -466,7 +484,7 @@ impl<'a> Reader<'a> {
                     InputEnd
                 }
                 _ => {
-                    self.err_expected(token, lex::TokenKind::Ident);
+                    self.err_expected(token, [Ident, RawIdent]);
                     OtherToken(token)
                 }
             };
@@ -486,7 +504,7 @@ impl<'a> Reader<'a> {
                     InputEnd
                 }
                 _ => {
-                    self.err_expected(token, lex::TokenKind::OpenParen);
+                    self.err_expected(token, [OpenParen]);
                     OtherToken(token)
                 }
             };
@@ -506,7 +524,7 @@ impl<'a> Reader<'a> {
                     InputEnd
                 }
                 _ => {
-                    self.err_expected(token, lex::TokenKind::OpenBrace);
+                    self.err_expected(token, [OpenBrace]);
                     OtherToken(token)
                 }
             };
@@ -528,7 +546,7 @@ impl<'a> Reader<'a> {
                     return InputEnd;
                 }
                 _ => {
-                    self.err_unexpected(token);
+                    self.err_expected(token, [OpenParen, Ident, RawIdent]);
                     break OtherToken(token);
                 }
             }
@@ -550,7 +568,7 @@ impl<'a> Reader<'a> {
                     InputEnd
                 }
                 _ => {
-                    self.err_unexpected(token);
+                    self.err_expected(token, [Eq, Ident, RawIdent]);
                     OtherToken(token)
                 }
             };
@@ -570,19 +588,15 @@ impl<'a> Reader<'a> {
                     InputEnd
                 }
                 _ => {
-                    self.err_unexpected(token);
+                    self.err_expected(token, [Eq]);
                     OtherToken(token)
                 }
             };
         }
     }
 
-    fn err_unexpected(&mut self, span: impl Into<AsBSpan>) {
-        self.push_err(LexicalError::Unexpected(self.span(span)));
-    }
-
-    fn err_expected(&mut self, span: impl Into<AsBSpan>, expected: lex::TokenKind) {
-        self.push_err(LexicalError::Expected(self.span(span), expected));
+    fn err_expected(&mut self, span: impl Into<AsBSpan>, expected: impl Into<Vec<lex::TokenKind>>) {
+        self.push_err(LexicalError::Expected(self.span(span), expected.into()));
     }
 
     fn err_eof(&mut self) {
@@ -613,6 +627,14 @@ impl<'a> Reader<'a> {
 const fn is_expr(token: Option<token::Token>) -> bool {
     matches!(token, Some(token::Token::Expr(_)))
 }
+
+const LITERAL: lex::TokenKind = lex::TokenKind::Literal {
+    kind: lex::LiteralKind::Int {
+        base: lex::Base::Binary,
+        empty_int: false,
+    },
+    suffix_start: 0,
+};
 
 #[derive(Debug)]
 pub enum Either<A, B> {

@@ -166,22 +166,23 @@ pub fn write_errs(src: &str, errs: &ErrorMulti) -> String {
                     &src[s.from..s.to]
                 )
             }
-            Unexpected(s) => {
-                writeln!(
-                    out,
-                    r#"unexpected {},{} = "{}" "#,
-                    s.from,
-                    s.to,
-                    &src[s.from..s.to]
-                )
-            }
             Expected(s, token) => {
+                let mut name = String::new();
+                for token in token {
+                    name.push_str(token.name());
+                    name.push_str(" | ");
+                }
+                if name.ends_with(" | ") {
+                    name.pop();
+                    name.pop();
+                    name.pop();
+                }
                 writeln!(
                     out,
                     r#"expected pos {},{} to be "{}" but was "{}" "#,
                     s.from,
                     s.to,
-                    token.name(),
+                    name,
                     &src[s.from..s.to]
                 )
             }

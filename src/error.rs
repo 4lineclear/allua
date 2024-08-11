@@ -25,11 +25,13 @@ impl ErrorMulti {
         use LexicalError::*;
         let err = err.into();
         match err {
-            Lexical(Unexpected(new)) => match self.lex.last_mut() {
-                Some(Unexpected(old)) if new.from == old.to => {
+            Lexical(Expected(new, new_correct)) => match self.lex.last_mut() {
+                Some(Expected(old, old_correct))
+                    if new.from == old.to && &new_correct == old_correct =>
+                {
                     old.to = new.to;
                 }
-                _ => self.lex.push(Unexpected(new)),
+                _ => self.lex.push(Expected(new, new_correct)),
             },
             Lexical(lex) => self.lex.push(lex),
             Other(err) => self.other.push(err),
@@ -55,10 +57,7 @@ pub enum LexicalError {
     /// Some type of unclosed block
     Unclosed(BSpan),
     /// (start inclusive, end exclusive)
-    Unexpected(BSpan),
-    // TODO: have this accept a vec of lex tokens
-    /// (start inclusive, end exclusive)
-    Expected(BSpan, lex::TokenKind),
+    Expected(BSpan, Vec<lex::TokenKind>),
     /// Expected a token, eof found, should be extended in the future
     Eof(usize),
 }

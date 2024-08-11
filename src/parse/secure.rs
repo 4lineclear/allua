@@ -57,7 +57,9 @@ impl<'a> Reader<'a> {
 
     pub fn set_block(&mut self, token: lex::Token) {
         let Some(pos) = self.blocks.pop() else {
-            self.err_unexpected(token);
+            use lex::TokenKind::*;
+            self.err_expected(token, [Ident, RawIdent, OpenBrace, Eof]);
+            // NOTE: should be the same as Self::next_or_close_brace
             return;
         };
 
@@ -80,6 +82,10 @@ impl<'a> Reader<'a> {
         self.blocks.push(pos);
         self.block_spans
             .insert(pos, BSpan::new(self.token_pos(), self.cursor.pos()));
+    }
+
+    pub fn blocks_left(&mut self) -> bool {
+        !self.blocks.is_empty()
     }
 
     #[must_use]

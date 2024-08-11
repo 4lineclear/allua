@@ -74,7 +74,8 @@ fn unexpected_punct() {
     do_test!(
         PUNCT_SRC,
         [],
-        r#"unexpected 0,25 = "}()[],.@#~?:$=!<>-&|+*/^%""#,
+        r#"
+expected pos 0,25 to be "ident | r#ident | open brace | end of file" but was "}()[],.@#~?:$=!<>-&|+*/^%""#,
     );
 }
 
@@ -85,12 +86,15 @@ fn unclosed_block_comment() {
 
 #[test]
 fn let_punct_fail() {
+    // NOTE:
+    // the first error here is for the failed decl,
+    // the errors afterwards are for base unexpected errors
     do_test!(
         &("let ".to_owned() + PUNCT_SRC),
         [],
         r#"
-        expected pos 4,5 to be "ident" but was "}"
-        unexpected 5,29 = "()[],.@#~?:$=!<>-&|+*/^%""#,
+        expected pos 4,5 to be "ident | r#ident" but was "}"
+        expected pos 5,29 to be "ident | r#ident | open brace | end of file" but was "()[],.@#~?:$=!<>-&|+*/^%""#,
     );
 }
 
@@ -102,9 +106,9 @@ fn multi_err() {
         /**/ ^@@ # !/*/*/**/*/",
         ["let", "aa"],
         r##"
-            unexpected 18,21 = "^@@"
-            unexpected 22,23 = "#"
-            unexpected 24,25 = "!"
+            expected pos 18,21 to be "ident | r#ident | int" but was "^@@"
+            expected pos 22,23 to be "ident | r#ident | int" but was "#"
+            expected pos 24,25 to be "ident | r#ident | int" but was "!"
             unclosed 25,35 = "/*/*/**/*/"
             "##,
     );
@@ -354,23 +358,6 @@ fn string yeah() {
         ],
         "",
     );
-//     do_test!(
-//         r#"
-// fn string yeah() {
-//     const string hello = "Hello"
-//     const string world = "World"
-//     const string hello_world =  "${hello}, ${world}!"
-//     return hello_world
-// }"#,
-//         [
-//             "fn", "string", "yeah",
-//             "const", "string", "hello", "=", "\"Hello\"",
-//             "const", "string", "world", "=", "\"World\"",
-//             "const", "string", "world", "=", "\"${hello}, ${world}!\"",
-//             "return", "hello_world"
-//         ],
-//         "",
-//     );
     do_test!(
         r#"
 fn string yeah() {

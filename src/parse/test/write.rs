@@ -158,26 +158,31 @@ pub fn write_errs(src: &str, errs: &ErrorMulti) -> String {
         }
         match err {
             Unclosed(s) => {
-                let range = s.from as usize..s.to as usize;
-                writeln!(out, r#"unclosed {},{} = "{}" "#, s.from, s.to, &src[range])
+                writeln!(
+                    out,
+                    r#"unclosed {},{} = "{}" "#,
+                    s.from,
+                    s.to,
+                    &src[s.from..s.to]
+                )
             }
             Unexpected(s) => {
-                let range = s.from as usize..s.to as usize;
                 writeln!(
                     out,
                     r#"unexpected {},{} = "{}" "#,
-                    s.from, s.to, &src[range]
+                    s.from,
+                    s.to,
+                    &src[s.from..s.to]
                 )
             }
             Expected(s, token) => {
-                let range = s.from as usize..s.to as usize;
                 writeln!(
                     out,
                     r#"expected pos {},{} to be "{}" but was "{}" "#,
                     s.from,
                     s.to,
                     token.name(),
-                    &src[range]
+                    &src[s.from..s.to]
                 )
             }
             Eof(pos) => writeln!(out, r#"eof {pos} "#),

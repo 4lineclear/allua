@@ -56,6 +56,7 @@ pub enum LexicalError {
     Unclosed(BSpan),
     /// (start inclusive, end exclusive)
     Unexpected(BSpan),
+    // TODO: have this accept a vec of lex tokens
     /// (start inclusive, end exclusive)
     Expected(BSpan, lex::TokenKind),
     /// Expected a token, eof found, should be extended in the future

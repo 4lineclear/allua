@@ -50,6 +50,8 @@ macro_rules! do_test {
     ($src:expr, $expected_tokens:expr, $expected_errors:expr $(,)?) => {{
         println!("{:?}", pos!());
         let (module, errors) = Reader::new($src).module("test");
+        println!("{module:#?}");
+        println!("{errors:#?}");
         let expected_tokens = map_tokens(&$expected_tokens);
         let expected_errs = map_errs($expected_errors);
         let actual_tokens = write_module($src, &module);
@@ -110,31 +112,31 @@ fn multi_err() {
 
 #[test]
 fn decl() {
-    do_test!("let yeah = 3;", ["let", "yeah", "=", "3"], "");
-    do_test!("const yeah = 3;", ["const", "yeah", "=", "3"], "");
-    do_test!("let r#yeah = 3;", ["let", "r#yeah", "=", "3"], "");
-    do_test!("const r#yeah = 3;", ["const", "r#yeah", "=", "3"], "");
+    do_test!("let yeah = 3", ["let", "yeah", "=", "3"], "");
+    do_test!("const yeah = 3", ["const", "yeah", "=", "3"], "");
+    do_test!("let r#yeah = 3", ["let", "r#yeah", "=", "3"], "");
+    do_test!("const r#yeah = 3", ["const", "r#yeah", "=", "3"], "");
 }
 
 #[test]
 fn decl_with_type() {
     do_test!(
-        "let string yeah = 3;",
+        "let string yeah = 3",
         ["let", "string", "yeah", "=", "3"],
         ""
     );
     do_test!(
-        "const string yeah = 3;",
+        "const string yeah = 3",
         ["const", "string", "yeah", "=", "3"],
         ""
     );
     do_test!(
-        "let string r#yeah = 3;",
+        "let string r#yeah = 3",
         ["let", "string", "r#yeah", "=", "3"],
         ""
     );
     do_test!(
-        "const string r#yeah = 3;",
+        "const string r#yeah = 3",
         ["const", "string", "r#yeah", "=", "3"],
         ""
     );
@@ -143,7 +145,7 @@ fn decl_with_type() {
 #[test]
 fn let_chain() {
     do_test!(
-        &"let yeah = 3;".repeat(5),
+        &"let yeah = 3 ".repeat(5),
         [
             "let", "yeah", "=", "3", "let", "yeah", "=", "3", "let", "yeah", "=", "3", "let",
             "yeah", "=", "3", "let", "yeah", "=", "3"
@@ -156,16 +158,16 @@ fn let_chain() {
 fn let_and_fn() {
     do_test!(
         "\
-        let yeah = 3;\n\
-        print(yeah);\
+        let yeah = 3\n\
+        print(yeah)\
         ",
         ["let", "yeah", "=", "3", "print", "(", "yeah", ")",],
         "",
     );
     do_test!(
         "\
-        let r#yeah = 3;\n\
-        r#print(r#yeah);\
+        let r#yeah = 3\n\
+        r#print(r#yeah)\
         ",
         ["let", "r#yeah", "=", "3", "r#print", "(", "r#yeah", ")",],
         "",
@@ -174,7 +176,7 @@ fn let_and_fn() {
 
 #[test]
 fn fn_call_str() {
-    do_test!(r#"print("yeah");"#, ["print", "(", "\"yeah\"", ")"], "");
+    do_test!(r#"print("yeah")"#, ["print", "(", "\"yeah\"", ")"], "");
 }
 
 #[test]
@@ -210,17 +212,17 @@ fn fn_fail_multi_param() {
 #[test]
 fn nested_fn() {
     do_test!(
-        r#"print(print());"#,
+        r#"print(print())"#,
         ["print", "(", "print", "(", ")", ")"],
         r#""#
     );
     do_test!(
-        r#"print(print(), print());"#,
+        r#"print(print(), print())"#,
         ["print", "(", "print", "(", ")", ",", "print", "(", ")", ")"],
         "",
     );
     do_test!(
-        r#"print(print(print(print(print(print(print()))))));"#,
+        r#"print(print(print(print(print(print(print()))))))"#,
         [
             "print", "(", "print", "(", "print", "(", "print", "(", "print", "(", "print", "(",
             "print", "(", ")", ")", ")", ")", ")", ")", ")"
@@ -228,7 +230,7 @@ fn nested_fn() {
         "",
     );
     do_test!(
-        r#"print(print(print(), ""), print(print(one, two, three, yeah(five))));"#,
+        r#"print(print(print(), ""), print(print(one, two, three, yeah(five))))"#,
         [
             "print", "(", "print", "(", "print", "(", ")", ",", "\"\"", ")", ",", "print", "(",
             "print", "(", "one", ",", "two", ",", "three", ",", "yeah", "(", "five", ")", ")", ")",
@@ -241,18 +243,18 @@ fn nested_fn() {
 #[test]
 fn block() {
     do_test!("{}", ["{", "}"], "",);
-    do_test!("{print(yeah);}", ["{", "print", "(", "yeah", ")", "}"], "",);
+    do_test!("{print(yeah)}", ["{", "print", "(", "yeah", ")", "}"], "",);
     do_test!("{{}}", ["{", "{", "}", "}"], "",);
     do_test!(
-        "{{print(yeah);}}",
+        "{{print(yeah)}}",
         ["{", "{", "print", "(", "yeah", ")", "}", "}"],
         "",
     );
     do_test!(
         r#"{
             {
-                let string yeah = "";
-                print(yeah);
+                let string yeah = ""
+                print(yeah)
             }
         }"#,
         ["{", "{", "let", "string", "yeah", "=", "\"\"", "print", "(", "yeah", ")", "}", "}"],
@@ -262,8 +264,8 @@ fn block() {
         &r#"
         {
             {
-                let string yeah = "";
-                print(yeah);
+                let string yeah = ""
+                print(yeah)
             }
         }"#
         .repeat(3),
@@ -288,17 +290,17 @@ fn unclosed_block() {
         "#,
     );
     do_test!(
-        "print(yeah);{{}",
+        "print(yeah){{}",
         ["print", "(", "yeah", ")"],
         r#"
-        unclosed 12,15 = "{{}"
+        unclosed 11,14 = "{{}"
         "#,
     );
     do_test!(
-        "print(yeah);{{print(yeah);}",
+        "print(yeah){{print(yeah)}",
         ["print", "(", "yeah", ")"],
         r#"
-        unclosed 12,27 = "{{print(yeah);}"
+        unclosed 11,25 = "{{print(yeah)}"
         "#,
     );
 }
@@ -352,6 +354,23 @@ fn string yeah() {
         ],
         "",
     );
+//     do_test!(
+//         r#"
+// fn string yeah() {
+//     const string hello = "Hello"
+//     const string world = "World"
+//     const string hello_world =  "${hello}, ${world}!"
+//     return hello_world
+// }"#,
+//         [
+//             "fn", "string", "yeah",
+//             "const", "string", "hello", "=", "\"Hello\"",
+//             "const", "string", "world", "=", "\"World\"",
+//             "const", "string", "world", "=", "\"${hello}, ${world}!\"",
+//             "return", "hello_world"
+//         ],
+//         "",
+//     );
     do_test!(
         r#"
 fn string yeah() {

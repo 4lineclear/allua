@@ -9,6 +9,8 @@ use crate::{
     util::Symbol,
 };
 
+use super::AsBSpan;
+
 /// Reads tokens into a tokenstream
 #[derive(Debug)]
 pub struct Reader<'a> {
@@ -136,8 +138,17 @@ impl<'a> Reader<'a> {
         self.range(self.token_span(len))
     }
 
+    pub fn span(&self, span: impl Into<AsBSpan>) -> BSpan {
+        match span.into() {
+            AsBSpan::Len(len) => self.token_span(len),
+            AsBSpan::Token(token) => self.token_span(token.len),
+            AsBSpan::Span(span) => span,
+        }
+    }
+
     #[must_use]
-    pub fn range(&self, span: BSpan) -> &str {
+    pub fn range(&self, span: impl Into<AsBSpan>) -> &str {
+        let span = self.span(span);
         &self.src()[span.from..span.to]
     }
 
@@ -162,7 +173,7 @@ impl<'a> Reader<'a> {
     }
 
     #[must_use]
-    pub const fn token_span(&self, len: usize) -> BSpan {
+    const fn token_span(&self, len: usize) -> BSpan {
         BSpan::new(self.token_pos(), self.token_pos() + len)
     }
 }

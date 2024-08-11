@@ -1,4 +1,5 @@
-//! a basic version of a lua-like langauge
+//! a basic lua-like langauge
+
 #![deny(unsafe_code)]
 #![deny(
     clippy::all,
@@ -10,6 +11,7 @@
     future_incompatible
 )]
 #![warn(missing_debug_implementations)]
+#![allow(clippy::match_bool)]
 #![allow(clippy::enum_glob_use)]
 #![allow(clippy::single_match)]
 #![allow(clippy::module_name_repetitions)]

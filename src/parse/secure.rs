@@ -84,7 +84,8 @@ impl<'a> Reader<'a> {
             .insert(pos, BSpan::new(self.token_pos(), self.cursor.pos()));
     }
 
-    pub fn blocks_left(&mut self) -> bool {
+    #[must_use]
+    pub fn blocks_left(&self) -> bool {
         !self.blocks.is_empty()
     }
 

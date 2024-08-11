@@ -111,7 +111,7 @@ pub enum Flow {
     While(TSpan),
 }
 
-/// [`DeclType`] <name> ?(= <value>);
+/// [`DeclKind`] <name> ?(= <value>);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Decl {
     pub kind: DeclKind,

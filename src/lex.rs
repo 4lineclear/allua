@@ -17,12 +17,13 @@ pub mod unescape;
 pub use cursor::{Cursor, EOF_CHAR};
 pub use token::{
     Base, DocStyle,
+    LexKind::{self, *},
+    Lexeme,
     LiteralKind::{self, *},
-    RawStrError, Token,
-    TokenKind::{self, *},
+    RawStrError,
 };
 
-pub fn tokenize(input: &str) -> impl Iterator<Item = Token> + '_ {
+pub fn tokenize(input: &str) -> impl Iterator<Item = Lexeme> + '_ {
     Cursor::new(input)
 }
 
@@ -57,10 +58,10 @@ pub fn validate_raw_str(input: &str, prefix_len: usize) -> Result<(), RawStrErro
 
 impl Cursor<'_> {
     /// Parses a token from the input string.
-    pub fn advance_token(&mut self) -> Token {
+    pub fn advance_token(&mut self) -> Lexeme {
         self.token_pos = self.pos();
         let Some(first_char) = self.bump() else {
-            return Token::new(TokenKind::Eof, 0);
+            return Lexeme::new(LexKind::Eof, 0);
         };
         let token_kind = match first_char {
             // Slash, comment or block comment.
@@ -111,7 +112,7 @@ impl Cursor<'_> {
                 let literal_kind = self.number(c);
                 let suffix_start = self.pos_within_token();
                 self.eat_literal_suffix();
-                TokenKind::Literal {
+                LexKind::Literal {
                     kind: literal_kind,
                     suffix_start,
                 }
@@ -154,12 +155,12 @@ impl Cursor<'_> {
             c if !c.is_ascii() && c.is_emoji_char() => self.fake_ident_or_unknown_prefix(),
             _ => Unknown,
         };
-        let res = Token::new(token_kind, self.pos_within_token());
+        let res = Lexeme::new(token_kind, self.pos_within_token());
         self.reset_pos_within_token();
         res
     }
 
-    fn line_comment(&mut self) -> TokenKind {
+    fn line_comment(&mut self) -> LexKind {
         debug_assert!(self.prev() == '/' && self.first() == '/');
         self.bump();
 
@@ -175,7 +176,7 @@ impl Cursor<'_> {
         LineComment { doc_style }
     }
 
-    fn block_comment(&mut self) -> TokenKind {
+    fn block_comment(&mut self) -> LexKind {
         debug_assert!(self.prev() == '/' && self.first() == '*');
         self.bump();
 
@@ -215,13 +216,13 @@ impl Cursor<'_> {
         }
     }
 
-    fn whitespace(&mut self) -> TokenKind {
+    fn whitespace(&mut self) -> LexKind {
         debug_assert!(is_whitespace(self.prev()));
         self.eat_while(is_whitespace);
         Whitespace
     }
 
-    fn raw_ident(&mut self) -> TokenKind {
+    fn raw_ident(&mut self) -> LexKind {
         debug_assert!(self.prev() == 'r' && self.first() == '#' && is_id_start(self.second()));
         // Eat "#" symbol.
         self.bump();
@@ -230,7 +231,7 @@ impl Cursor<'_> {
         RawIdent
     }
 
-    fn ident_or_unknown_prefix(&mut self) -> TokenKind {
+    fn ident_or_unknown_prefix(&mut self) -> LexKind {
         debug_assert!(is_id_start(self.prev()));
         // Start is already eaten, eat the rest of identifier.
         self.eat_while(is_id_continue);
@@ -243,7 +244,7 @@ impl Cursor<'_> {
         }
     }
 
-    fn fake_ident_or_unknown_prefix(&mut self) -> TokenKind {
+    fn fake_ident_or_unknown_prefix(&mut self) -> LexKind {
         // Start is already eaten, eat the rest of identifier.
         self.eat_while(|c| {
             unicode_ident::is_xid_continue(c)
@@ -259,7 +260,7 @@ impl Cursor<'_> {
         }
     }
 
-    pub fn string(&mut self) -> TokenKind {
+    pub fn string(&mut self) -> LexKind {
         let terminated = self.double_quoted_string();
         let suffix_start = self.pos_within_token();
         if terminated {
@@ -274,7 +275,7 @@ impl Cursor<'_> {
         mk_kind: impl FnOnce(bool) -> LiteralKind,
         mk_kind_raw: impl FnOnce(Option<u8>) -> LiteralKind,
         single_quoted: Option<fn(bool) -> LiteralKind>,
-    ) -> TokenKind {
+    ) -> LexKind {
         match (self.first(), self.second(), single_quoted) {
             ('\'', _, Some(mk_kind)) => {
                 self.bump();
@@ -406,7 +407,7 @@ impl Cursor<'_> {
         }
     }
 
-    fn char(&mut self) -> TokenKind {
+    fn char(&mut self) -> LexKind {
         debug_assert!(self.prev() == '\'');
         let terminated = self.single_quoted_string();
         let suffix_start = self.pos_within_token();
@@ -611,10 +612,10 @@ impl Cursor<'_> {
 }
 
 impl Iterator for Cursor<'_> {
-    type Item = Token;
+    type Item = Lexeme;
 
     fn next(&mut self) -> Option<Self::Item> {
         let token = self.advance_token();
-        (token.kind != TokenKind::Eof).then_some(token)
+        (token.kind != LexKind::Eof).then_some(token)
     }
 }

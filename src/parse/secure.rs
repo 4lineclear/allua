@@ -55,9 +55,9 @@ impl<'a> Reader<'a> {
         (cursor, errors, tokens, block_spans, blocks)
     }
 
-    pub fn set_block(&mut self, token: lex::Token) {
+    pub fn set_block(&mut self, token: lex::Lexeme) {
         let Some(pos) = self.blocks.pop() else {
-            use lex::TokenKind::*;
+            use lex::LexKind::*;
             self.err_expected(token, [Ident, RawIdent, OpenBrace, Eof]);
             // NOTE: should be the same as Self::next_or_close_brace
             return;

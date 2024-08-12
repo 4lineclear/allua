@@ -12,7 +12,6 @@
 // TODO: have parser fail fast
 // TODO: test fail fast changes
 // TODO: consider renaming lex::Token && lex::TokenKind
-// TODO: move most err_unexpected to err_expected.
 // TODO: use this: https://github.com/marketplace/actions/todo-actions
 // TODO: go back to using semicolons everywhere? either use semi or make
 // single item tupls "(item)" how single value exprs can be returned?
@@ -75,8 +74,8 @@ impl<'a> Reader<'a> {
     }
 
     /// `A` = `Eof` `B` = `Token` `C` = `CloseBrace`
-    fn next_or_close_brace(&mut self, token: lex::Token) -> Either3<(), (), ()> {
-        use lex::token::TokenKind::*;
+    fn next_or_close_brace(&mut self, token: lex::Lexeme) -> Either3<(), (), ()> {
+        use lex::token::LexKind::*;
         let span = self.span(token);
         let kind = token.kind;
         match kind {
@@ -372,7 +371,7 @@ impl<'a> Reader<'a> {
 
     /// parse a top level expr
     fn parse_expr(&mut self) {
-        use lex::token::TokenKind::*;
+        use lex::token::LexKind::*;
         loop {
             let Some(token) = self.lex_non_wc() else {
                 continue;
@@ -434,7 +433,7 @@ impl<'a> Reader<'a> {
         })
     }
 
-    fn err_expected(&mut self, span: impl Into<AsBSpan>, expected: impl Into<Vec<lex::TokenKind>>) {
+    fn err_expected(&mut self, span: impl Into<AsBSpan>, expected: impl Into<Vec<lex::LexKind>>) {
         self.push_err(LexicalError::Expected(self.span(span), expected.into()));
     }
 
@@ -442,14 +441,14 @@ impl<'a> Reader<'a> {
         self.push_err(LexicalError::Eof(self.token_pos()));
     }
 
-    fn lex_non_wc(&mut self) -> Option<lex::Token> {
+    fn lex_non_wc(&mut self) -> Option<lex::Lexeme> {
         let token = self.cursor.advance_token();
         (!self.filter_comment_or_whitespace(token)).then_some(token)
     }
 
     // TODO: consider also having a flag for parsing when there is a doc comment
-    fn filter_comment_or_whitespace(&mut self, token: lex::Token) -> bool {
-        use lex::TokenKind::*;
+    fn filter_comment_or_whitespace(&mut self, token: lex::Lexeme) -> bool {
+        use lex::LexKind::*;
         match token.kind {
             BlockComment { terminated, .. } if !terminated => {
                 self.push_err(LexicalError::Unclosed(self.span(token)));
@@ -467,7 +466,7 @@ const fn is_expr(token: Option<token::Token>) -> bool {
     matches!(token, Some(token::Token::Expr(_)))
 }
 
-const LITERAL: lex::TokenKind = lex::TokenKind::Literal {
+const LITERAL: lex::LexKind = lex::LexKind::Literal {
     kind: lex::LiteralKind::Int {
         base: lex::Base::Binary,
         empty_int: false,
@@ -499,7 +498,7 @@ pub enum Filtered<T> {
     InputEnd,
     Correct(T),
     /// !(`Whitespace` | `Eof` | `Correct(T)`)
-    OtherToken(lex::Token),
+    OtherToken(lex::Lexeme),
 }
 
 impl<T> Filtered<T> {
@@ -522,7 +521,7 @@ impl<T> From<T> for Filtered<T> {
 pub enum AsBSpan {
     // Current span used as start
     Len(usize),
-    Token(lex::Token),
+    Token(lex::Lexeme),
     // Uses given
     Span(BSpan),
 }
@@ -532,8 +531,8 @@ impl From<usize> for AsBSpan {
         Self::Len(value)
     }
 }
-impl From<lex::Token> for AsBSpan {
-    fn from(value: lex::Token) -> Self {
+impl From<lex::Lexeme> for AsBSpan {
+    fn from(value: lex::Lexeme) -> Self {
         Self::Token(value)
     }
 }
@@ -547,7 +546,7 @@ macro_rules! look_for {
     (match ($this:ident, $token:ident, $expected: tt $(, $span:ident)?) {
         $($matcher:pat $(if $pred:expr)? => $result:expr $(,)?)*
     }) => {{
-        use lex::token::TokenKind::*;
+        use lex::token::LexKind::*;
         loop {
             let Some($token) = $this.lex_non_wc() else {
                 continue;

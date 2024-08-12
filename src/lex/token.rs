@@ -4,21 +4,21 @@
 /// It doesn't contain information about data that has been parsed,
 /// only the type of the token and its size.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Token {
-    pub kind: TokenKind,
+pub struct Lexeme {
+    pub kind: LexKind,
     pub len: usize,
 }
 
-impl Token {
+impl Lexeme {
     #[must_use]
-    pub const fn new(kind: TokenKind, len: usize) -> Self {
+    pub const fn new(kind: LexKind, len: usize) -> Self {
         Self { kind, len }
     }
 }
 
 /// Enum representing common lexeme types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum TokenKind {
+pub enum LexKind {
     // Multi-char tokens:
     /// "// comment"
     LineComment { doc_style: Option<DocStyle> },
@@ -122,11 +122,11 @@ pub enum TokenKind {
     Eof,
 }
 
-impl TokenKind {
+impl LexKind {
     #[must_use]
     pub const fn name(self) -> &'static str {
+        use LexKind::*;
         use LiteralKind::*;
-        use TokenKind::*;
         match self {
             LineComment { .. } => "line comment",
             BlockComment { .. } => "block comment",

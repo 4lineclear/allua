@@ -1,6 +1,6 @@
 use std::str::Chars;
 
-use super::{token::TokenKind, Token};
+use super::{token::LexKind, Lexeme};
 
 // PERF: Chars is slightly faster than &str
 
@@ -15,7 +15,7 @@ pub struct Cursor<'a> {
     src: &'a str,
     chars: Chars<'a>,
     prev: char,
-    prev_token: Token,
+    prev_token: Lexeme,
 }
 
 impl<'a> Cursor<'a> {
@@ -27,7 +27,7 @@ impl<'a> Cursor<'a> {
             src: input,
             chars: input.chars(),
             prev: EOF_CHAR,
-            prev_token: Token::new(TokenKind::Eof, 0),
+            prev_token: Lexeme::new(LexKind::Eof, 0),
         }
     }
 }
@@ -71,7 +71,7 @@ impl Cursor<'_> {
     /// Returns the last eaten token
     /// (For debug assertions only.)
     #[must_use]
-    pub const fn prev_token(&self) -> Token {
+    pub const fn prev_token(&self) -> Lexeme {
         self.prev_token
     }
 

@@ -57,7 +57,7 @@ pub enum LexicalError {
     /// Some type of unclosed block
     Unclosed(BSpan),
     /// (start inclusive, end exclusive)
-    Expected(BSpan, Vec<lex::TokenKind>),
+    Expected(BSpan, Vec<lex::LexKind>),
     /// Expected a token, eof found, should be extended in the future
     Eof(usize),
 }

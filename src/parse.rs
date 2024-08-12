@@ -14,8 +14,6 @@
 //
 // should support every operator that rust does
 
-// TODO: use this: https://github.com/marketplace/actions/todo-actions
-
 // TODO: consider removing parse_ prefixes to methods
 //
 // it is somewhat repetetive to have it everywhere
@@ -213,8 +211,17 @@ impl<'a> Reader<'a> {
     ///
     /// `true` = `CloseParen`
     fn parse_call_params(&mut self) -> Filtered<bool> {
-        look_for!(match (self, token, []) {
-            Comma => (),
+        let mut comma = false;
+        look_for!(match (
+            self,
+            token,
+            if comma {
+                vec![CloseParen, Ident, RawIdent, LITERAL]
+            } else {
+                vec![Comma, CloseParen, Ident, RawIdent, LITERAL]
+            }
+        ) {
+            Comma if !comma => comma = true,
             CloseParen => break true.into(),
             Ident | RawIdent => break self.parse_call_param_ident(self.span(token)),
             Literal { kind, suffix_start } => {
@@ -284,7 +291,7 @@ impl<'a> Reader<'a> {
             OpenBrace => break true.into(),
             Ident | RawIdent => {
                 let ident = self.span(token);
-                break look_for!(match (self, token, [OpenParen, CloseParen, Comma, Eof]) {
+                break look_for!(match (self, token, [OpenParen, CloseParen, Eof]) {
                     OpenParen => {
                         self.parse_fn_call(ident, false);
                         break false.into();
@@ -693,7 +700,7 @@ impl From<BSpan> for AsBSpan {
 }
 
 macro_rules! look_for {
-    (match ($this:ident, $token:ident, $expected: tt $(, $span:ident)?) {
+    (match ($this:ident, $token:ident, $expected: expr $(, $span:ident)?) {
         $($matcher:pat $(if $pred:expr)? => $result:expr $(,)?)*
     }) => {{
         use lex::token::LexKind::*;

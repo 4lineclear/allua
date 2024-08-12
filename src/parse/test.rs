@@ -505,12 +505,14 @@ if yeah() {
     );
 }
 
-// FIXME: remove repeat commas in parse_call_params
 #[test]
 fn repeat_commas() {
     do_test!(
         "yeah(one,,, two,,,,)",
-        ["yeah", "(", "one", ",", "two", ")"],
-        ""
+        [],
+        r#"
+expected pos 10,11 to be "close parenthesis | ident | r#ident | int" but was ","
+expected pos 15,16 to be "open parenthesis" but was ","
+expected pos 16,20 to be "ident | r#ident | open brace | end of file" but was ",,,)""#
     )
 }

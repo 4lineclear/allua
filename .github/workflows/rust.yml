@@ -50,7 +50,7 @@ jobs:
       - name: todo-actions
       - uses: actions/checkout@v4
         uses: dtinth/todo-actions@master
-        env:
+        with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TODO_ACTIONS_MONGO_URL: ${{ secrets.TODO_ACTIONS_MONGO_URL }}
 

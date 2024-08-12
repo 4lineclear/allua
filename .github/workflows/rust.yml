@@ -52,7 +52,8 @@ jobs:
     steps:
       - name: todo-actions
       - uses: actions/checkout@v1
-      - uses: dtinth/todo-actions@master
-      - env:
-         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-         TODO_ACTIONS_MONGO_URL: ${{ secrets.TODO_ACTIONS_MONGO_URL }}
+        uses: dtinth/todo-actions@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TODO_ACTIONS_MONGO_URL: ${{ secrets.TODO_ACTIONS_MONGO_URL }}
+

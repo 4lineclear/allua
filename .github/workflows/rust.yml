@@ -26,9 +26,6 @@ jobs:
 
     runs-on: ubuntu-latest
 
-    env:
-      CARGO_TERM_COLOR: always
-
     steps:
       - uses: actions/checkout@v4
       - name: Install Rust
@@ -51,7 +48,7 @@ jobs:
 
     steps:
       - name: todo-actions
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v4
         uses: dtinth/todo-actions@master
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

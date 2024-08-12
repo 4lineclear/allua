@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use crate::{
     error::{ErrorMulti, ErrorOnce},
     lex,
-    parse::token,
+    parse::{self, token},
     span::{BSpan, TSpan},
     util::Symbol,
 };
@@ -12,7 +12,7 @@ use crate::{
 use super::AsBSpan;
 
 /// Reads tokens into a tokenstream
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Reader<'a> {
     pub cursor: lex::Cursor<'a>,
     errors: ErrorMulti,
@@ -20,6 +20,8 @@ pub struct Reader<'a> {
     block_spans: HashMap<usize, BSpan>,
     /// a backlog of blocks
     blocks: Vec<usize>,
+    /// a backlog of control flows
+    flows: Vec<usize>,
 }
 
 impl<'a> Reader<'a> {
@@ -27,10 +29,7 @@ impl<'a> Reader<'a> {
     pub fn new(src: &'a str) -> Self {
         Self {
             cursor: lex::Cursor::new(src),
-            errors: ErrorMulti::default(),
-            tokens: Vec::new(),
-            block_spans: HashMap::new(),
-            blocks: Vec::new(),
+            ..Default::default()
         }
     }
 
@@ -50,6 +49,7 @@ impl<'a> Reader<'a> {
             tokens,
             block_spans,
             blocks,
+            flows: _,
         } = self;
 
         (cursor, errors, tokens, block_spans, blocks)
@@ -57,9 +57,7 @@ impl<'a> Reader<'a> {
 
     pub fn set_block(&mut self, token: lex::Lexeme) {
         let Some(pos) = self.blocks.pop() else {
-            use lex::LexKind::*;
-            self.err_expected(token, [Ident, RawIdent, OpenBrace, Eof]);
-            // NOTE: should be the same as Self::next_or_close_brace
+            self.err_expected(token, parse::EXPECTED);
             return;
         };
 
@@ -78,10 +76,31 @@ impl<'a> Reader<'a> {
         it.to = self.cursor.pos();
     }
 
+    pub fn dummy(&mut self) -> usize {
+        let idx = self.len();
+        self.tokens.push(token::Token::Dummy);
+        idx
+    }
+
     pub fn push_block(&mut self, pos: usize) {
         self.blocks.push(pos);
         self.block_spans
             .insert(pos, BSpan::new(self.token_pos(), self.cursor.pos()));
+    }
+
+    pub fn push_flow(&mut self, pos: usize) {
+        self.flows.push(pos);
+    }
+
+    pub fn last_flow(&mut self, run: impl Fn(&mut Self, usize) -> bool) -> bool {
+        let Some(&flow) = self.flows.last() else {
+            return false;
+        };
+        let used = run(self, flow);
+        if used {
+            self.flows.pop();
+        }
+        true
     }
 
     #[must_use]
@@ -108,8 +127,7 @@ impl<'a> Reader<'a> {
     /// # Panics
     ///
     /// Invalid index given or, when in debug, token at index was not dummy
-    pub fn set_at(&mut self, set_idx: usize, token: impl Into<token::Token>) {
-        debug_assert_eq!(self.tokens[set_idx], token::Token::Dummy);
+    pub fn set_at(&mut self, set_idx: usize, token: impl Into<token::Token> + Copy) {
         self.tokens[set_idx] = token.into();
     }
 
@@ -160,8 +178,8 @@ impl<'a> Reader<'a> {
     }
 
     #[must_use]
-    pub fn symbol(&self, span: BSpan) -> Symbol {
-        self.src()[span.from..span.to].into()
+    pub fn symbol(&self, span: impl Into<AsBSpan>) -> Symbol {
+        self.range(span).into()
     }
 
     #[must_use]

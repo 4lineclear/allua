@@ -18,6 +18,12 @@ pub struct Cursor<'a> {
     prev_token: Lexeme,
 }
 
+impl Default for Cursor<'_> {
+    fn default() -> Self {
+        Self::new("")
+    }
+}
+
 impl<'a> Cursor<'a> {
     #[must_use]
     pub fn new(input: &'a str) -> Self {

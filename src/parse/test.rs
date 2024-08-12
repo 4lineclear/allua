@@ -50,8 +50,9 @@ macro_rules! do_test {
     ($src:expr, $expected_tokens:expr, $expected_errors:expr $(,)?) => {{
         println!("{:?}", pos!());
         let (module, errors) = Reader::new($src).module("test");
-        println!("{module:#?}");
-        println!("{errors:#?}");
+        // NOTE: uncomment when extra detail needed
+        // println!("{module:#?}");
+        // println!("{errors:#?}");
         let expected_tokens = map_tokens(&$expected_tokens);
         let expected_errs = map_errs($expected_errors);
         let actual_tokens = write_module($src, &module);
@@ -416,6 +417,7 @@ fn assorted_fn_fail() {
 fn empty_if() {
     do_test!(r#"if true {}"#, ["if", "true"], "",);
     do_test!(r#"if true() {}"#, ["if", "true", "(", ")"], "",);
+    do_test!(r#"if true {} else {}"#, ["if", "true", "else"], "",);
 }
 
 #[test]
@@ -423,4 +425,9 @@ fn empty_if_fail() {
     do_test!(r#"if true {"#, [], "eof 9",);
     do_test!(r#"if true("#, [], "eof 8",);
     do_test!(r#"if true() {"#, [], "eof 11",);
+    do_test!(
+        r#"else {}"#,
+        ["{", "}"],
+        r#"expected pos 0,4 to be "ident | r#ident | open brace | end of file" but was "else""#,
+    );
 }

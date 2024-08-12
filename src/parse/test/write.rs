@@ -12,7 +12,7 @@ struct Writer<'a> {
     items: &'a [Token],
     pos: usize,
     out: &'a mut Vec<String>,
-    closes: Vec<(usize, char)>,
+    scheduled: Vec<(usize, &'static str)>,
 }
 
 impl<'a> Writer<'a> {
@@ -26,15 +26,15 @@ impl<'a> Writer<'a> {
 
     fn write_close(&mut self) {
         loop {
-            let Some(&(i, ch)) = self.closes.last() else {
+            let Some(&(i, s)) = self.scheduled.last() else {
                 break;
             };
 
             if i != self.pos + 1 {
                 break;
             }
-            self.closes.pop();
-            self.push(String::from(ch));
+            self.scheduled.pop();
+            self.push(s);
         }
     }
 
@@ -68,7 +68,7 @@ impl<'a> Writer<'a> {
             Token::Import(_) => todo!("imports not added yet"),
             Token::Block(span) => {
                 self.push("{");
-                self.closes.push((span.to, '}'));
+                self.scheduled.push((span.to, "}"));
             }
             Token::FnDefParam(FnDefParam {
                 type_name,
@@ -82,7 +82,12 @@ impl<'a> Writer<'a> {
                 }
             }
             Token::Dummy => self.push("dummy"),
-            Token::Flow(Flow::If(_, _)) => self.push("if"),
+            Token::Flow(Flow::If(_, el)) => {
+                self.push("if");
+                if let Some(el) = el {
+                    self.scheduled.push((el.to, "else"));
+                }
+            }
         };
 
         self.write_close();
@@ -131,7 +136,7 @@ pub fn write_module(src: &str, module: &Module) -> Vec<String> {
         items: &module.items,
         pos: 0,
         out: &mut out,
-        closes: Vec::new(),
+        scheduled: Vec::new(),
     };
 
     loop {

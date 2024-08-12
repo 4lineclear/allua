@@ -83,7 +83,7 @@ token_from!(FnDef, Decl, Expr, Value, Import, FnDefParam, Flow);
 /// Control flow
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Flow {
-    If(TSpan, bool),
+    If(TSpan, Option<TSpan>),
     // While(TSpan),
 }
 

@@ -1,3 +1,6 @@
+test:
+    cargo nextest run
+
 md:
     mdflc ./notes/
 

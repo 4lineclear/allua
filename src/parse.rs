@@ -16,11 +16,6 @@
 
 // TODO: use this: https://github.com/marketplace/actions/todo-actions
 
-// TODO: add coverage reports to github actions
-//
-// Also should use llvm-cov to add testing to untested areas,
-// see easy-sgr for an example of how it could be done
-
 // TODO: consider removing parse_ prefixes to methods
 //
 // it is somewhat repetetive to have it everywhere

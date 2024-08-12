@@ -36,36 +36,12 @@ impl Module {
 /// A user defined function
 ///
 /// Acts as both as a module, datatype and function
-///
-///
-/// ```ignore
-/// fn ::name(::params) then
-///   ::tokens
-/// end
-/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct FnDef {
     pub name: Symbol,
     pub type_name: Option<Symbol>,
     pub params: TSpan,
     pub tokens: TSpan,
-}
-
-impl FnDef {
-    #[must_use]
-    pub const fn new(
-        name: Symbol,
-        type_name: Option<Symbol>,
-        param_span: TSpan,
-        token_span: TSpan,
-    ) -> Self {
-        Self {
-            name,
-            type_name,
-            params: param_span,
-            tokens: token_span,
-        }
-    }
 }
 
 /// <type > <name> ?(= <value>);
@@ -83,7 +59,7 @@ pub enum Token {
     Decl(Decl),
     // NOTE: never have expr be under another token, instead refer to a span, etc
     Expr(Expr),
-    Return(usize),
+    Return,
     Value(Value),
     Import(Import),
     Block(TSpan),
@@ -118,18 +94,6 @@ pub struct Decl {
     pub type_name: Option<Symbol>,
     pub name: Symbol,
     pub value: bool,
-}
-
-impl Decl {
-    #[must_use]
-    pub const fn new(kind: DeclKind, type_name: Option<Symbol>, name: Symbol, value: bool) -> Self {
-        Self {
-            kind,
-            type_name,
-            name,
-            value,
-        }
-    }
 }
 
 /// <type> | `let` | `const` | `const` <type>

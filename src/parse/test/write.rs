@@ -63,7 +63,7 @@ impl<'a> Writer<'a> {
                 }
             }
             Token::Expr(expr) => self.write_expr(expr),
-            Token::Return(_) => self.push("return"),
+            Token::Return => self.push("return"),
             Token::Value(val) => self.write_val(val),
             Token::Import(_) => todo!("imports not added yet"),
             Token::Block(span) => {

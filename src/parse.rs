@@ -65,9 +65,9 @@ impl<'a> Reader<'a> {
     fn next(&mut self) -> bool {
         let token = self.cursor.advance_token();
         match self.next_or_close_brace(token) {
-            Either3::A(()) => false,
-            Either3::B(()) => true,
-            Either3::C(()) => {
+            X(()) => false,
+            Y(()) => true,
+            Z(()) => {
                 self.set_block(token);
                 true
             }
@@ -88,15 +88,15 @@ impl<'a> Reader<'a> {
                 self.push_token(token::Token::Dummy);
             }
             // code block end
-            CloseBrace => return Either3::C(()),
-            Eof => return Either3::A(()),
+            CloseBrace => return Z(()),
+            Eof => return X(()),
             _ => match self.blocks_left() {
                 true => self.err_expected(token, [Ident, RawIdent, OpenBrace, CloseBrace, Eof]),
                 false => self.err_expected(token, [Ident, RawIdent, OpenBrace, Eof]),
             },
         };
 
-        Either3::B(())
+        Y(())
     }
 
     fn parse_ident(&mut self, span: BSpan) {
@@ -111,7 +111,7 @@ impl<'a> Reader<'a> {
                 self.parse_fn_def();
             }
             "if" => {
-                todo!()
+                todo!("control flow not yet added")
             }
             "return" => {
                 let set_idx = self.len();
@@ -120,7 +120,7 @@ impl<'a> Reader<'a> {
                     self.truncate(set_idx);
                     return;
                 };
-                self.set_at(set_idx, token::Token::Return(set_idx + 1));
+                self.set_at(set_idx, token::Token::Return);
             }
             _ => {
                 self.parse_fn_call(span, true);
@@ -142,13 +142,13 @@ impl<'a> Reader<'a> {
         let type_name;
 
         match self.eq_or_ident() {
-            Filtered::Correct(Either::A(())) => {
+            Filtered::Correct(A(())) => {
                 self.parse_expr();
                 value = is_expr(self.get_token(dummy_pos + 1));
                 name = self.range(first);
                 type_name = None;
             }
-            Filtered::Correct(Either::B(second)) => {
+            Filtered::Correct(B(second)) => {
                 let Filtered::Correct(()) = self.until_eq() else {
                     return false;
                 };
@@ -159,7 +159,12 @@ impl<'a> Reader<'a> {
             }
             Filtered::InputEnd | Filtered::OtherToken(_) => return false,
         };
-        let decl = token::Decl::new(kind, type_name, name.into(), value);
+        let decl = token::Decl {
+            kind,
+            type_name,
+            name: name.into(),
+            value,
+        };
         self.set_at(dummy_pos, decl);
         true
     }
@@ -194,67 +199,42 @@ impl<'a> Reader<'a> {
         );
     }
 
-    // TODO: have the below use Filtered
-    //
     /// ..)
     ///
     /// `true` = `CloseParen`
     fn parse_call_params(&mut self) -> Filtered<bool> {
-        // TODO: consider not returning a, token
-        use lex::token::TokenKind::*;
-        loop {
-            let Some(token) = self.lex_non_wc() else {
-                continue;
-            };
-            if let Comma = token.kind {
-                continue;
+        look_for!(match (self, token, []) {
+            Comma => (),
+            CloseParen => break true.into(),
+            Ident | RawIdent => break self.parse_call_param_ident(self.span(token)),
+            Literal { kind, suffix_start } => {
+                self.push_token(token::Value::new(
+                    self.symbol(self.span(token)),
+                    kind,
+                    suffix_start,
+                ));
+                break false.into();
             }
-            break match token.kind {
-                CloseParen => true.into(),
-                Ident | RawIdent => self.parse_call_param_ident(self.span(token)),
-                Literal { kind, suffix_start } => {
-                    self.push_token(token::Value::new(
-                        self.symbol(self.span(token)),
-                        kind,
-                        suffix_start,
-                    ));
-                    false.into()
-                }
-                Eof => InputEnd,
-                _ => {
-                    self.err_expected(token, [Comma, CloseParen, Ident, RawIdent, LITERAL]);
-                    OtherToken(token)
-                }
-            };
-        }
+            Eof => break InputEnd,
+        })
     }
 
     fn parse_call_param_ident(&mut self, ident: BSpan) -> Filtered<bool> {
-        use lex::token::TokenKind::*;
-        loop {
-            let Some(token) = self.lex_non_wc() else {
-                continue;
-            };
-            break match token.kind {
-                OpenParen => {
-                    self.parse_fn_call(ident, false);
-                    false.into()
-                }
-                CloseParen => {
-                    self.push_token(token::Expr::Var(self.symbol(ident)));
-                    true.into()
-                }
-                Comma => {
-                    self.push_token(token::Expr::Var(self.symbol(ident)));
-                    false.into()
-                }
-                Eof => InputEnd,
-                _ => {
-                    self.err_expected(token, [OpenParen, CloseParen, Comma, Eof]);
-                    OtherToken(token)
-                }
-            };
-        }
+        look_for!(match (self, token, [OpenParen, CloseParen, Comma, Eof]) {
+            Eof => break InputEnd,
+            OpenParen => {
+                self.parse_fn_call(ident, false);
+                break false.into();
+            }
+            CloseParen => {
+                self.push_token(token::Expr::Var(self.symbol(ident)));
+                break true.into();
+            }
+            Comma => {
+                self.push_token(token::Expr::Var(self.symbol(ident)));
+                break false.into();
+            }
+        })
     }
 
     /// `fn` (?`<type>`) `<name>` ((?`<param>`?,)) { (?`<token>`?,) }
@@ -264,8 +244,8 @@ impl<'a> Reader<'a> {
         };
 
         let (name, type_name) = match self.open_paren_or_ident() {
-            Correct(Either::A(())) => (first, None),
-            Correct(Either::B(span)) => match self.open_paren() {
+            Correct(A(())) => (first, None),
+            Correct(B(span)) => match self.open_paren() {
                 Correct(()) => (span, Some(first)),
                 InputEnd | OtherToken(_) => return,
             },
@@ -301,13 +281,13 @@ impl<'a> Reader<'a> {
         loop {
             let token = self.cursor.advance_token();
             match self.next_or_close_brace(token) {
-                Either3::A(()) => {
+                X(()) => {
                     self.truncate(dummy_pos);
                     self.err_eof();
                     return;
                 }
-                Either3::B(()) => (),
-                Either3::C(()) => break,
+                Y(()) => (),
+                Z(()) => break,
             };
         }
 
@@ -329,113 +309,57 @@ impl<'a> Reader<'a> {
 
     /// return ..
     fn parse_return(&mut self) -> Filtered<()> {
-        use lex::token::TokenKind::*;
-        loop {
-            let Some(token) = self.lex_non_wc() else {
-                continue;
-            };
-            let span = self.span(token);
-            break match token.kind {
-                // TODO: consider moving this to it's own function
-                Ident | RawIdent => loop {
-                    let Some(after_ident) = self.lex_non_wc() else {
-                        continue;
-                    };
-
-                    break match after_ident.kind {
-                        OpenParen => {
-                            self.parse_fn_call(span, false);
-                            ().into()
-                        }
-                        Eof => {
-                            self.err_eof();
-                            InputEnd
-                        }
-                        _ => {
-                            self.err_expected(token, [CloseParen]);
-                            OtherToken(token)
-                        }
-                    };
-                },
-                Literal { kind, suffix_start } => {
-                    self.push_token(token::Value::new(self.symbol(span), kind, suffix_start));
-                    ().into()
-                }
-                Eof => {
-                    self.err_eof();
-                    InputEnd
-                }
-                _ => {
-                    self.err_expected(token, [Ident, RawIdent, LITERAL]);
-                    OtherToken(token)
-                }
-            };
-        }
+        look_for!(match (self, token, [Ident, RawIdent, LITERAL], span) {
+            Ident | RawIdent => {
+                break look_for!(match (self, after, [CloseParen]) {
+                    OpenParen => {
+                        self.parse_fn_call(span, false);
+                        break ().into();
+                    }
+                });
+            }
+            Literal { kind, suffix_start } => {
+                self.push_token(token::Value::new(
+                    self.symbol(self.span(token)),
+                    kind,
+                    suffix_start,
+                ));
+                break ().into();
+            }
+        })
     }
 
     /// ..)
     ///
     /// `true` = `CloseParen`, `false` = `Param`
     fn parse_def_params(&mut self) -> Filtered<bool> {
-        use lex::token::TokenKind::*;
-        loop {
-            let Some(token) = self.lex_non_wc() else {
-                continue;
-            };
-            if let Comma = token.kind {
-                continue;
-            }
-            break match token.kind {
-                CloseParen => true.into(),
-                Ident | RawIdent => self.parse_def_decl(self.span(token)),
-                Eof => {
-                    self.err_eof();
-                    InputEnd
-                }
-                _ => {
-                    self.err_expected(token, [Ident, RawIdent, CloseParen]);
-                    OtherToken(token)
-                }
-            };
-        }
+        look_for!(match (self, token, [Ident, RawIdent, CloseParen]) {
+            CloseParen => break true.into(),
+            Ident | RawIdent => break self.parse_def_decl(self.span(token)),
+        })
     }
 
     /// similar to [`Self::parse_decl`], but detecting a closing paren
     ///
     /// `true` = `CloseParen`, `false` = `Param`
     fn parse_def_decl(&mut self, first: BSpan) -> Filtered<bool> {
-        use lex::token::TokenKind::*;
         let filtered = self.ident();
         let Correct(second) = filtered else {
             return filtered.map(|_| false);
         };
         let dummy_pos = self.len();
         self.push_token(token::Token::Dummy);
-        let close = loop {
-            let Some(token) = self.lex_non_wc() else {
-                continue;
-            };
-            match token.kind {
-                // parse param with default val
-                Eq => {
-                    self.parse_expr();
-                    break false;
-                }
-                // simple param found, cont parse
-                Comma => break false,
-                // all params found, stop parse
-                CloseParen => break true,
-                // eof with no close, err
-                Eof => {
-                    self.err_eof();
-                    return InputEnd;
-                }
-                _ => {
-                    self.err_expected(token, [Eq, Comma, CloseParen]);
-                    return OtherToken(token);
-                }
+        let close = look_for!(match (self, token, [Eq, Comma, CloseParen]) {
+            // parse param with default val
+            Eq => {
+                self.parse_expr();
+                break false;
             }
-        };
+            // simple param found, cont parse
+            Comma => break false,
+            // all params found, stop parse
+            CloseParen => break true, // eof with no close, err
+        });
         let value = matches!(self.get_token(dummy_pos + 1), Some(token::Token::Expr(_)));
         let fn_def_param = token::FnDefParam {
             type_name: self.range(first).into(),
@@ -478,35 +402,35 @@ impl<'a> Reader<'a> {
 
     fn open_paren(&mut self) -> Filtered<()> {
         look_for!(match (self, token, [OpenParen]) {
-            OpenParen => break (()).into(),
+            OpenParen => break ().into(),
         })
     }
 
     fn open_brace(&mut self) -> Filtered<()> {
         look_for!(match (self, token, [OpenBrace]) {
-            OpenBrace => break (()).into(),
+            OpenBrace => break ().into(),
         })
     }
 
     /// `A` = `OpenParen`, `C` = `Ident`
     fn open_paren_or_ident(&mut self) -> Filtered<Either<(), BSpan>> {
         look_for!(match (self, token, [OpenParen, Ident]) {
-            OpenParen => break Either::A(()).into(),
-            Ident | RawIdent => return Either::B(self.span(token)).into(),
+            OpenParen => break A(()).into(),
+            Ident | RawIdent => return B(self.span(token)).into(),
         })
     }
 
     /// `A` `Eq`, `B(len)` `Ident`
     fn eq_or_ident(&mut self) -> Filtered<Either<(), BSpan>> {
         look_for!(match (self, token, [Eq, Ident]) {
-            Eq => break Either::A(()).into(),
-            Ident | RawIdent => break Either::B(self.span(token)).into(),
+            Eq => break A(()).into(),
+            Ident | RawIdent => break B(self.span(token)).into(),
         })
     }
 
     fn until_eq(&mut self) -> Filtered<()> {
         look_for!(match (self, token, [Eq]) {
-            Eq => break (()).into(),
+            Eq => break ().into(),
         })
     }
 
@@ -551,18 +475,22 @@ const LITERAL: lex::TokenKind = lex::TokenKind::Literal {
     suffix_start: 0,
 };
 
-#[derive(Debug)]
+use Either::*;
+use Either3::*;
+use Filtered::*;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Either<A, B> {
     A(A),
     B(B),
 }
 
 // TODO: consider renaming A B C to One Two Three
-#[derive(Debug)]
-pub enum Either3<A, B, C> {
-    A(A),
-    B(B),
-    C(C),
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Either3<X, Y, Z> {
+    X(X),
+    Y(Y),
+    Z(Z),
 }
 
 /// A filtered [`lex::Token`]
@@ -583,8 +511,6 @@ impl<T> Filtered<T> {
         }
     }
 }
-
-use Filtered::*;
 
 impl<T> From<T> for Filtered<T> {
     fn from(value: T) -> Self {
@@ -618,23 +544,25 @@ impl From<BSpan> for AsBSpan {
 }
 
 macro_rules! look_for {
-    (match ($this:ident, $token:ident, $expected: tt) {
-        $($matcher:pat $(if $pred:expr)* => $result:expr),* $(,)?
+    (match ($this:ident, $token:ident, $expected: tt $(, $span:ident)?) {
+        $($matcher:pat $(if $pred:expr)? => $result:expr $(,)?)*
     }) => {{
         use lex::token::TokenKind::*;
         loop {
             let Some($token) = $this.lex_non_wc() else {
                 continue;
             };
+            $(let $span = $this.span($token);)?
             match $token.kind {
-                $($matcher $(if $pred)* => $result,)*
+                $($matcher $(if $pred)? => $result,)*
+                #[allow(unreachable_patterns)]
                 Eof => {
                     $this.err_eof();
-                    break InputEnd;
+                    return InputEnd;
                 }
                 _ => {
                     $this.err_expected($token, $expected);
-                    break OtherToken($token);
+                    return OtherToken($token);
                 }
             }
         }

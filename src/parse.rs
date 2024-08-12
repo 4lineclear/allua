@@ -9,9 +9,7 @@
 // TODO: add visibility item to Fn
 // TODO: consider unifying the "different kinds" of expr syntax into one
 // TODO: add operators
-// TODO: have parser fail fast
 // TODO: test fail fast changes
-// TODO: consider renaming lex::Token && lex::TokenKind
 // TODO: use this: https://github.com/marketplace/actions/todo-actions
 // TODO: go back to using semicolons everywhere? either use semi or make
 // single item tupls "(item)" how single value exprs can be returned?
@@ -32,12 +30,6 @@ mod secure;
 #[cfg(test)]
 pub mod test;
 pub mod token;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ParseMode {
-    Module,
-    Fn,
-}
 
 impl<'a> Reader<'a> {
     /// Parse a module
@@ -110,12 +102,12 @@ impl<'a> Reader<'a> {
                 self.parse_fn_def();
             }
             "if" => {
-                todo!("control flow not yet added")
+                self.parse_if();
             }
             "return" => {
                 let set_idx = self.len();
                 self.push_token(token::Token::Dummy);
-                if !matches!(self.parse_return(), Correct(())) {
+                if !self.parse_return().is_correct() {
                     self.truncate(set_idx);
                     return;
                 };
@@ -141,14 +133,14 @@ impl<'a> Reader<'a> {
         let type_name;
 
         match self.eq_or_ident() {
-            Filtered::Correct(A(())) => {
+            Correct(A(())) => {
                 self.parse_expr();
                 value = is_expr(self.get_token(dummy_pos + 1));
                 name = self.range(first);
                 type_name = None;
             }
-            Filtered::Correct(B(second)) => {
-                let Filtered::Correct(()) = self.until_eq() else {
+            Correct(B(second)) => {
+                if !self.until_eq().is_correct() {
                     return false;
                 };
                 self.parse_expr();
@@ -156,7 +148,7 @@ impl<'a> Reader<'a> {
                 name = self.range(second);
                 type_name = Some(self.symbol(first));
             }
-            Filtered::InputEnd | Filtered::OtherToken(_) => return false,
+            InputEnd | OtherToken(_) => return false,
         };
         let decl = token::Decl {
             kind,
@@ -170,7 +162,7 @@ impl<'a> Reader<'a> {
 
     /// (..) | ..)
     fn parse_fn_call(&mut self, span: BSpan, check_paren: bool) {
-        if check_paren && !matches!(self.open_paren(), Correct(())) {
+        if check_paren && !self.open_paren().is_correct() {
             return;
         }
 
@@ -183,7 +175,6 @@ impl<'a> Reader<'a> {
                 Correct(false) => (),
                 InputEnd | OtherToken(_) => {
                     self.truncate(from);
-                    self.err_eof();
                     return;
                 }
             };
@@ -203,6 +194,7 @@ impl<'a> Reader<'a> {
     /// `true` = `CloseParen`
     fn parse_call_params(&mut self) -> Filtered<bool> {
         look_for!(match (self, token, []) {
+            // TODO: consider changing this to catch repeat commas
             Comma => (),
             CloseParen => break true.into(),
             Ident | RawIdent => break self.parse_call_param_ident(self.span(token)),
@@ -214,13 +206,11 @@ impl<'a> Reader<'a> {
                 ));
                 break false.into();
             }
-            Eof => break InputEnd,
         })
     }
 
     fn parse_call_param_ident(&mut self, ident: BSpan) -> Filtered<bool> {
-        look_for!(match (self, token, [OpenParen, CloseParen, Comma, Eof]) {
-            Eof => break InputEnd,
+        look_for!(match (self, token, [OpenParen, CloseParen, Comma]) {
             OpenParen => {
                 self.parse_fn_call(ident, false);
                 break false.into();
@@ -234,6 +224,90 @@ impl<'a> Reader<'a> {
                 break false.into();
             }
         })
+    }
+
+    /// return ..
+    fn parse_return(&mut self) -> Filtered<()> {
+        look_for!(match (self, token, [Ident, RawIdent, LITERAL], span) {
+            Ident | RawIdent => {
+                break look_for!(match (self, after, [CloseParen]) {
+                    OpenParen => {
+                        self.parse_fn_call(span, false);
+                        break ().into();
+                    }
+                });
+            }
+            Literal { kind, suffix_start } => {
+                self.push_token(token::Value::new(
+                    self.symbol(self.span(token)),
+                    kind,
+                    suffix_start,
+                ));
+                break ().into();
+            }
+        })
+    }
+
+    /// if <cond> {<token>}
+    fn parse_if(&mut self) {
+        let set_idx = self.len();
+        self.push_token(token::Token::Dummy);
+
+        let close = look_for!(match (self, token, [Ident, RawIdent]) {
+            OpenBrace => break true.into(),
+            Ident | RawIdent => {
+                let ident = self.span(token);
+                break look_for!(match (self, token, [OpenParen, CloseParen, Comma, Eof]) {
+                    OpenParen => {
+                        self.parse_fn_call(ident, false);
+                        break false.into();
+                    }
+                    OpenBrace => {
+                        self.push_token(token::Expr::Var(self.symbol(ident)));
+                        break true.into();
+                    }
+                });
+            }
+        });
+
+        if !close.is_correct() {
+            self.truncate(set_idx);
+            return;
+        }
+
+        if !is_expr(self.get_token(set_idx + 1)) {
+            self.truncate(set_idx);
+            return;
+        }
+
+        if !matches!(close, Correct(true)) && !self.open_brace().is_correct() {
+            self.truncate(set_idx);
+            return;
+        };
+
+        let token_start = self.len();
+        loop {
+            let token = self.cursor.advance_token();
+            match self.next_or_close_brace(token) {
+                X(()) => {
+                    self.truncate(set_idx);
+                    self.err_eof();
+                    return;
+                }
+                Y(()) => (),
+                Z(()) => break,
+            };
+        }
+        self.set_at(
+            set_idx,
+            token::Flow::If(
+                TSpan {
+                    from: token_start,
+                    to: self.len(),
+                },
+                false,
+            ),
+        );
     }
 
     /// `fn` (?`<type>`) `<name>` ((?`<param>`?,)) { (?`<token>`?,) }
@@ -272,7 +346,7 @@ impl<'a> Reader<'a> {
             to: param_end,
         };
 
-        let Correct(()) = self.open_brace() else {
+        if !self.open_brace().is_correct() {
             self.truncate(dummy_pos);
             return;
         };
@@ -306,28 +380,6 @@ impl<'a> Reader<'a> {
         );
     }
 
-    /// return ..
-    fn parse_return(&mut self) -> Filtered<()> {
-        look_for!(match (self, token, [Ident, RawIdent, LITERAL], span) {
-            Ident | RawIdent => {
-                break look_for!(match (self, after, [CloseParen]) {
-                    OpenParen => {
-                        self.parse_fn_call(span, false);
-                        break ().into();
-                    }
-                });
-            }
-            Literal { kind, suffix_start } => {
-                self.push_token(token::Value::new(
-                    self.symbol(self.span(token)),
-                    kind,
-                    suffix_start,
-                ));
-                break ().into();
-            }
-        })
-    }
-
     /// ..)
     ///
     /// `true` = `CloseParen`, `false` = `Param`
@@ -349,47 +401,44 @@ impl<'a> Reader<'a> {
         let dummy_pos = self.len();
         self.push_token(token::Token::Dummy);
         let close = look_for!(match (self, token, [Eq, Comma, CloseParen]) {
-            // parse param with default val
+            CloseParen => break true.into(),
+            Comma => break false.into(),
             Eq => {
                 self.parse_expr();
-                break false;
+                break false.into();
             }
-            // simple param found, cont parse
-            Comma => break false,
-            // all params found, stop parse
-            CloseParen => break true, // eof with no close, err
         });
-        let value = matches!(self.get_token(dummy_pos + 1), Some(token::Token::Expr(_)));
+        if !close.is_correct() {
+            return close;
+        }
+        let value = is_expr(self.get_token(dummy_pos + 1));
         let fn_def_param = token::FnDefParam {
             type_name: self.range(first).into(),
             name: self.range(second).into(),
             value,
         };
         self.set_at(dummy_pos, fn_def_param);
-        close.into()
+        close
     }
 
     /// parse a top level expr
     fn parse_expr(&mut self) {
-        use lex::token::LexKind::*;
-        loop {
-            let Some(token) = self.lex_non_wc() else {
-                continue;
-            };
-            let span = self.span(token);
-            match token.kind {
-                Ident | RawIdent => break self.parse_fn_call(span, true),
-                Literal { kind, suffix_start } => {
-                    break self.push_token(token::Expr::Value(token::Value::new(
-                        self.current_range(token.len).into(),
-                        kind,
-                        suffix_start,
-                    )))
-                }
-                Eof => break,
-                _ => self.err_expected(token, [Ident, RawIdent, LITERAL]),
+        let _ = look_for!(match (self, token, [], span) {
+            Ident | RawIdent => {
+                self.parse_fn_call(span, true);
+                break ().into();
             }
-        }
+            Literal { kind, suffix_start } => {
+                self.push_token(token::Expr::Value(token::Value::new(
+                    self.current_range(token.len).into(),
+                    kind,
+                    suffix_start,
+                )));
+                break ().into();
+            }
+            Eof => break ().into(),
+            _ => self.err_expected(token, [Ident, RawIdent, LITERAL]),
+        });
     }
 
     /// `A(true)` if eof, `A(true)` if non ident, else `B(Ident)`
@@ -509,11 +558,15 @@ impl<T> Filtered<T> {
             OtherToken(t) => OtherToken(t),
         }
     }
+
+    const fn is_correct(&self) -> bool {
+        matches!(self, Correct(_))
+    }
 }
 
 impl<T> From<T> for Filtered<T> {
     fn from(value: T) -> Self {
-        Self::Correct(value)
+        Correct(value)
     }
 }
 
@@ -557,11 +610,12 @@ macro_rules! look_for {
                 #[allow(unreachable_patterns)]
                 Eof => {
                     $this.err_eof();
-                    return InputEnd;
+                    break InputEnd;
                 }
+                #[allow(unreachable_patterns)]
                 _ => {
                     $this.err_expected($token, $expected);
-                    return OtherToken($token);
+                    break OtherToken($token);
                 }
             }
         }

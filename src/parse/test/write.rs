@@ -82,7 +82,7 @@ impl<'a> Writer<'a> {
                 }
             }
             Token::Dummy => self.push("dummy"),
-            Token::Flow(_) => todo!("control flow not added yet"),
+            Token::Flow(Flow::If(_, _)) => self.push("if"),
         };
 
         self.write_close();

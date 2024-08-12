@@ -400,6 +400,7 @@ fn string yeah() {
         "",
     );
 }
+
 #[test]
 fn assorted_fn_fail() {
     do_test!(r#"fn"#, [], "eof 2",);
@@ -409,4 +410,17 @@ fn assorted_fn_fail() {
     do_test!(r#"fn string yeah()"#, [], "eof 16",);
     do_test!(r#"fn string yeah() {"#, [], "eof 18",);
     do_test!(r#"fn string yeah(string yeah = ""#, [], "eof 30",);
+}
+
+#[test]
+fn empty_if() {
+    do_test!(r#"if true {}"#, ["if", "true"], "",);
+    do_test!(r#"if true() {}"#, ["if", "true", "(", ")"], "",);
+}
+
+#[test]
+fn empty_if_fail() {
+    do_test!(r#"if true {"#, [], "eof 9",);
+    do_test!(r#"if true("#, [], "eof 8",);
+    do_test!(r#"if true() {"#, [], "eof 11",);
 }

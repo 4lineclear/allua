@@ -431,3 +431,86 @@ fn empty_if_fail() {
         r#"expected pos 0,4 to be "ident | r#ident | open brace | end of file" but was "else""#,
     );
 }
+
+#[rustfmt::skip]
+#[test]
+fn assorted_if() {
+    do_test!(
+        r#"
+if yeah {
+    const string hello = "Hello"
+    const string world = "World"
+    print("${hello}, ${world}!")
+}"#,
+        [
+            "if", "yeah",
+            "const", "string", "hello", "=", "\"Hello\"",
+            "const", "string", "world", "=", "\"World\"",
+            "print", "(", "\"${hello}, ${world}!\"", ")"
+        ],
+        "",
+    );
+    do_test!(
+        r#"
+if yeah() {
+    const string hello = "Hello"
+    const string world = "World"
+    return "${hello}, ${world}!"
+}"#,
+        [
+            "if", "yeah", "(", ")",
+            "const", "string", "hello", "=", "\"Hello\"",
+            "const", "string", "world", "=", "\"World\"",
+            "return", "\"${hello}, ${world}!\""
+        ],
+        "",
+    );
+    do_test!(
+        r#"
+if yeah() {
+    if yeah_inner() {
+        const string hello = "Hello"
+        const string world = "World"
+        return "${hello}, ${world}!"
+    }
+    return yeah_inner()
+}"#,
+        [
+            "if", "yeah", "(", ")",
+            "if", "yeah_inner", "(", ")",
+            "const", "string", "hello", "=", "\"Hello\"",
+            "const", "string", "world", "=", "\"World\"",
+            "return", "\"${hello}, ${world}!\"",
+            "return", "yeah_inner", "(", ")"
+        ],
+        "",
+    );
+    do_test!(
+        r#"
+if yeah() {
+    const string hello = "Hello"
+    const string world = "World"
+    if yeah_inner(hello, world) {
+        return "${hello}, ${world}!"
+    }
+}"#,
+        [
+            "if", "yeah", "(", ")",
+            "const", "string", "hello", "=", "\"Hello\"",
+            "const", "string", "world", "=", "\"World\"",
+            "if", "yeah_inner", "(", "hello", ",", "world", ")",
+            "return", "\"${hello}, ${world}!\"",
+        ],
+        "",
+    );
+}
+
+// FIXME: remove repeat commas in parse_call_params
+#[test]
+fn repeat_commas() {
+    do_test!(
+        "yeah(one,,, two,,,,)",
+        ["yeah", "(", "one", ",", "two", ")"],
+        ""
+    )
+}

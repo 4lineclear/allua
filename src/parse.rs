@@ -1,23 +1,35 @@
-// TODO: create pattern-composer macro
-// TODO: consider adding system where doc comments can be anywhere?
-// maybe change how doc comments are considered compared to rust.
-// TODO: consider rewriting everything
 // TODO: add tuples
-// TODO: allow for parsing code blocks in other areas.
-// code block
+//
+// would be in the same style as rust tuples
+
 // TODO: create a compiler error type.
+//
+// currently have a generic Other(String) error that should be replaced
+
 // TODO: add visibility item to Fn
-// TODO: consider unifying the "different kinds" of expr syntax into one
+//
+// should probably add it to other constructs as well
+
 // TODO: add operators
-// TODO: test fail fast changes
+//
+// should support every operator that rust does
+
 // TODO: use this: https://github.com/marketplace/actions/todo-actions
-// TODO: go back to using semicolons everywhere? either use semi or make
-// single item tupls "(item)" how single value exprs can be returned?
+
 // TODO: add coverage reports to github actions
-// also should use llvm-cov to add testing to untested areas
+//
+// Also should use llvm-cov to add testing to untested areas,
+// see easy-sgr for an example of how it could be done
+
 // TODO: consider removing parse_ prefixes to methods
-// FIX: expr system is kinda broken, should fix before adding operators
-// lots of this above is addressed by this
+//
+// it is somewhat repetetive to have it everywhere
+
+// FIX: expr system is broken
+//
+// should be fixed before adding operators.
+// other errors should benefit from this as well
+
 #![allow(clippy::cast_possible_truncation)]
 
 use crate::{
@@ -207,7 +219,6 @@ impl<'a> Reader<'a> {
     /// `true` = `CloseParen`
     fn parse_call_params(&mut self) -> Filtered<bool> {
         look_for!(match (self, token, []) {
-            // TODO: consider changing this to catch repeat commas
             Comma => (),
             CloseParen => break true.into(),
             Ident | RawIdent => break self.parse_call_param_ident(self.span(token)),
@@ -460,41 +471,34 @@ impl<'a> Reader<'a> {
     ///
     /// `true` = `CloseParen`, `false` = `Param`
     fn parse_def_params(&mut self) -> Filtered<bool> {
-        look_for!(match (self, token, [Ident, RawIdent, CloseParen]) {
+        look_for!(match (self, token, [Ident, RawIdent, CloseParen], first) {
             CloseParen => break true.into(),
-            Ident | RawIdent => break self.parse_def_decl(self.span(token)),
-        })
-    }
-
-    // TODO: combine parse_def_params & parse_def_decl
-
-    /// similar to [`Self::parse_decl`], but detecting a closing paren
-    ///
-    /// `true` = `CloseParen`, `false` = `Param`
-    fn parse_def_decl(&mut self, first: BSpan) -> Filtered<bool> {
-        let filtered = self.ident();
-        let Correct(second) = filtered else {
-            return filtered.map(|_| false);
-        };
-        let set_idx = self.dummy();
-        let close = look_for!(match (self, token, [Eq, Comma, CloseParen]) {
-            CloseParen => break true.into(),
-            Comma => break false.into(),
-            Eq => {
-                self.parse_expr();
-                break false.into();
+            Ident | RawIdent => {
+                let filtered = self.ident();
+                let Correct(second) = filtered else {
+                    return filtered.map(|_| false);
+                };
+                let set_idx = self.dummy();
+                let close = look_for!(match (self, token, [Eq, Comma, CloseParen]) {
+                    CloseParen => break true.into(),
+                    Comma => break false.into(),
+                    Eq => {
+                        self.parse_expr();
+                        break false.into();
+                    }
+                });
+                if !close.is_correct() {
+                    return close;
+                }
+                let fn_def_param = token::FnDefParam {
+                    type_name: self.range(first).into(),
+                    name: self.range(second).into(),
+                    value: is_expr(self.get_token(set_idx + 1)),
+                };
+                self.set_at(set_idx, fn_def_param);
+                break close;
             }
-        });
-        if !close.is_correct() {
-            return close;
-        }
-        let fn_def_param = token::FnDefParam {
-            type_name: self.range(first).into(),
-            name: self.range(second).into(),
-            value: is_expr(self.get_token(set_idx + 1)),
-        };
-        self.set_at(set_idx, fn_def_param);
-        close
+        })
     }
 
     /// parse a top level expr
@@ -632,7 +636,6 @@ impl<A, B> Either<A, B> {
     }
 }
 
-// TODO: consider renaming A B C to One Two Three
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Either3<X, Y, Z> {
     X(X),

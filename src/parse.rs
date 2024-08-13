@@ -14,16 +14,20 @@
 //
 // should support every operator that rust does
 
-// FIX: expr system is broken
+// TODO: add incomplete-expr system
+//
+// A single ident could be interpreted as an incomplete-expr
+
+// TODO: FIX: expr system is broken
 //
 // should be fixed before adding operators.
 // other errors should benefit from this as well
 
-#![allow(clippy::cast_possible_truncation)]
+use self::token::*;
 
 use crate::{
     error::{ErrorMulti, ErrorOnce, LexicalError},
-    lex::{self, LexKind, Lexeme},
+    lex::*,
     span::{BSpan, TSpan},
 };
 
@@ -35,15 +39,13 @@ mod secure;
 pub mod test;
 pub mod token;
 
-use lex::*;
-
 pub const EXPECTED_CLOSE: [LexKind; 5] = [Ident, RawIdent, OpenBrace, CloseBrace, Eof];
 pub const EXPECTED: [LexKind; 4] = [Ident, RawIdent, OpenBrace, Eof];
 
 impl<'a> Reader<'a> {
     /// Parse a module
     #[must_use]
-    pub fn module(mut self, name: &str) -> (token::Module, ErrorMulti) {
+    pub fn module(mut self, name: &str) -> (Module, ErrorMulti) {
         while self.next() {}
         let (cursor, mut errors, mut tokens, spans, blocks) = self.into_parts();
 
@@ -59,7 +61,7 @@ impl<'a> Reader<'a> {
             tokens.truncate(pos);
         }
 
-        (token::Module::new(name, tokens), errors)
+        (Module::new(name, tokens), errors)
     }
 
     fn next(&mut self) -> bool {
@@ -98,10 +100,10 @@ impl<'a> Reader<'a> {
     fn ident(&mut self, span: BSpan) {
         match self.range(span) {
             "let" => {
-                self.decl(token::DeclKind::Let);
+                self.decl(DeclKind::Let);
             }
             "const" => {
-                self.decl(token::DeclKind::Const);
+                self.decl(DeclKind::Const);
             }
             "fn" => {
                 self.fn_def();
@@ -112,16 +114,15 @@ impl<'a> Reader<'a> {
             "else" => {
                 if !self.last_flow(Self::parse_else) {
                     self.top_level_expected(span);
-                    return;
                 }
             }
             "return" => {
                 let set_idx = self.dummy();
-                if !self.parse_return().is_correct() {
+                if self.parse_return().is_correct() {
+                    self.set_at(set_idx, Token::Return);
+                } else {
                     self.truncate(set_idx);
-                    return;
                 };
-                self.set_at(set_idx, token::Token::Return);
             }
             _ => {
                 self.fn_call(span, true);
@@ -130,7 +131,7 @@ impl<'a> Reader<'a> {
     }
 
     /// `let|const` `<name>` `(?= <expr>)`;
-    fn decl(&mut self, kind: token::DeclKind) -> bool {
+    fn decl(&mut self, kind: DeclKind) -> bool {
         // get either var-name or type-name
         let Correct(first) = self.until_ident() else {
             return false;
@@ -159,7 +160,7 @@ impl<'a> Reader<'a> {
             }
             InputEnd | OtherToken(_) => return false,
         };
-        let decl = token::Decl {
+        let decl = Decl {
             kind,
             type_name,
             name: name.into(),
@@ -192,10 +193,7 @@ impl<'a> Reader<'a> {
         let set_idx = from;
         let to = self.len();
         let from = from + 1;
-        self.set_at(
-            set_idx,
-            token::Expr::FnCall(self.symbol(span), TSpan { from, to }),
-        );
+        self.set_at(set_idx, Expr::FnCall(self.symbol(span), TSpan { from, to }));
     }
 
     /// ..)
@@ -212,7 +210,7 @@ impl<'a> Reader<'a> {
             Comma => comma_found = true,
             Ident | RawIdent => break self.call_param_ident(self.span(token)),
             Literal { kind, suffix_start } => {
-                self.push_token(token::Value::new(self.symbol(token), kind, suffix_start));
+                self.push_token(Value::new(self.symbol(token), kind, suffix_start));
                 break Some(false).into();
             }
         })
@@ -221,7 +219,7 @@ impl<'a> Reader<'a> {
     fn call_param_ident(&mut self, ident: BSpan) -> Filtered<Option<bool>> {
         look_for!(match (self, token, [OpenParen, CloseParen, Comma]) {
             CloseParen => {
-                self.push_token(token::Expr::Var(self.symbol(ident)));
+                self.push_token(Expr::Var(self.symbol(ident)));
                 break None.into();
             }
             OpenParen => {
@@ -229,7 +227,7 @@ impl<'a> Reader<'a> {
                 break Some(false).into();
             }
             Comma => {
-                self.push_token(token::Expr::Var(self.symbol(ident)));
+                self.push_token(Expr::Var(self.symbol(ident)));
                 break Some(true).into();
             }
         })
@@ -247,7 +245,7 @@ impl<'a> Reader<'a> {
                 });
             }
             Literal { kind, suffix_start } => {
-                self.push_token(token::Value::new(self.symbol(token), kind, suffix_start));
+                self.push_token(Value::new(self.symbol(token), kind, suffix_start));
                 break ().into();
             }
         })
@@ -260,16 +258,14 @@ impl<'a> Reader<'a> {
         let Some(token_start) = self.if_body(set_idx) else {
             return;
         };
-        self.set_at(
-            set_idx,
-            token::Flow::If(
-                TSpan {
-                    from: token_start,
-                    to: self.len(),
-                },
-                None,
-            ),
+        let token = Flow::If(
+            TSpan {
+                from: token_start,
+                to: self.len(),
+            },
+            None,
         );
+        self.set_at(set_idx, token);
     }
 
     /// returns (dummy pos, block start)
@@ -284,7 +280,7 @@ impl<'a> Reader<'a> {
                         break false.into();
                     }
                     OpenBrace => {
-                        self.push_token(token::Expr::Var(self.symbol(ident)));
+                        self.push_token(Expr::Var(self.symbol(ident)));
                         break true.into();
                     }
                 });
@@ -327,7 +323,7 @@ impl<'a> Reader<'a> {
     /// should be run with [`Self::last_flow`]
     fn parse_else(&mut self, orig_pos: usize) -> bool {
         let orig_span = match self.get_token(orig_pos) {
-            Some(token::Token::Flow(token::Flow::If(span, _))) => span,
+            Some(Token::Flow(Flow::If(span, _))) => span,
             other => {
                 self.push_err(ErrorOnce::Other(format!(
                     "invalid flow received at {orig_pos}: {other:#?}"
@@ -351,7 +347,7 @@ impl<'a> Reader<'a> {
                 let Some(token_start) = self.if_body(orig_pos) else {
                     return false;
                 };
-                let token = token::Flow::If(
+                let token = Flow::If(
                     orig_span,
                     Some(TSpan {
                         from: token_start,
@@ -382,7 +378,7 @@ impl<'a> Reader<'a> {
             };
         }
 
-        let token = token::Flow::If(
+        let token = Flow::If(
             orig_span,
             Some(TSpan {
                 from: token_start,
@@ -439,21 +435,19 @@ impl<'a> Reader<'a> {
             };
         }
 
-        self.set_at(
-            set_idx,
-            token::FnDef {
-                name: self.symbol(name),
-                type_name: type_name.map(|span| self.symbol(span)),
-                params: TSpan {
-                    from: set_idx + 1,
-                    to: param_end,
-                },
-                tokens: TSpan {
-                    from: param_end,
-                    to: self.len(),
-                },
+        let token = FnDef {
+            name: self.symbol(name),
+            type_name: type_name.map(|span| self.symbol(span)),
+            params: TSpan {
+                from: set_idx + 1,
+                to: param_end,
             },
-        );
+            tokens: TSpan {
+                from: param_end,
+                to: self.len(),
+            },
+        };
+        self.set_at(set_idx, token);
     }
 
     /// ..)
@@ -479,7 +473,7 @@ impl<'a> Reader<'a> {
                 if !close.is_correct() {
                     return close;
                 }
-                let fn_def_param = token::FnDefParam {
+                let fn_def_param = FnDefParam {
                     type_name: self.range(first).into(),
                     name: self.range(second).into(),
                     value: is_expr(self.get_token(set_idx + 1)),
@@ -498,7 +492,7 @@ impl<'a> Reader<'a> {
                 break ().into();
             }
             Literal { kind, suffix_start } => {
-                self.push_token(token::Expr::Value(token::Value::new(
+                self.push_token(Expr::Value(Value::new(
                     self.current_range(token.len).into(),
                     kind,
                     suffix_start,
@@ -594,13 +588,13 @@ impl<'a> Reader<'a> {
 
 #[inline]
 #[must_use]
-const fn is_expr(token: Option<token::Token>) -> bool {
-    matches!(token, Some(token::Token::Expr(_)))
+const fn is_expr(token: Option<Token>) -> bool {
+    matches!(token, Some(Token::Expr(_)))
 }
 
 const LITERAL: LexKind = LexKind::Literal {
-    kind: lex::LiteralKind::Int {
-        base: lex::Base::Binary,
+    kind: LiteralKind::Int {
+        base: Base::Binary,
         empty_int: false,
     },
     suffix_start: 0,
@@ -639,7 +633,7 @@ pub enum Either3<X, Y, Z> {
     Z(Z),
 }
 
-/// A filtered [`lex::Token`]
+/// A filtered [`lex::Lexeme`]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Filtered<T> {
     InputEnd,
@@ -697,7 +691,7 @@ macro_rules! look_for {
     (match ($this:ident, $token:ident, $expected: expr $(, $span:ident)?) {
         $($matcher:pat $(if $pred:expr)? => $result:expr $(,)?)*
     }) => {{
-        use lex::token::LexKind::*;
+        use LexKind::*;
         loop {
             let Some($token) = $this.lex_non_wc() else {
                 continue;

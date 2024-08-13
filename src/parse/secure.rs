@@ -127,7 +127,7 @@ impl<'a> Reader<'a> {
     /// # Panics
     ///
     /// Invalid index given or, when in debug, token at index was not dummy
-    pub fn set_at(&mut self, set_idx: usize, token: impl Into<token::Token> + Copy) {
+    pub fn set_at(&mut self, set_idx: usize, token: impl Into<token::Token>) {
         self.tokens[set_idx] = token.into();
     }
 

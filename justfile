@@ -6,3 +6,7 @@ md:
 
 todo:
     rg "todo|FIX|TODO|HACK|WARN|PERF|NOTE|TEST" ./src/
+
+
+cov:
+    cargo llvm-cov --html

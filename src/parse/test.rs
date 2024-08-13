@@ -107,9 +107,9 @@ fn multi_err() {
         /**/ ^@@ # !/*/*/**/*/",
         ["let", "aa"],
         r##"
-            expected pos 18,21 to be "ident | r#ident | int" but was "^@@"
-            expected pos 22,23 to be "ident | r#ident | int" but was "#"
-            expected pos 24,25 to be "ident | r#ident | int" but was "!"
+            expected pos 18,21 to be "ident | r#ident | literal" but was "^@@"
+            expected pos 22,23 to be "ident | r#ident | literal" but was "#"
+            expected pos 24,25 to be "ident | r#ident | literal" but was "!"
             unclosed 25,35 = "/*/*/**/*/"
             "##,
     );
@@ -508,11 +508,27 @@ if yeah() {
 #[test]
 fn repeat_commas() {
     do_test!(
-        "yeah(one,,, two,,,,)",
-        [],
+        "yeah(,,,)",
+        ["yeah", "(", ")"],
         r#"
-expected pos 10,11 to be "close parenthesis | ident | r#ident | int" but was ","
-expected pos 15,16 to be "open parenthesis" but was ","
-expected pos 16,20 to be "ident | r#ident | open brace | end of file" but was ",,,)""#
-    )
+dupe commas 5,8 = ",,,"
+"#
+    );
+    do_test!(
+        "yeah(one,,,)",
+        ["yeah", "(", "one", ")"],
+        r#"
+dupe commas 9,11 = ",,"
+"#
+    );
+    do_test!(
+        "yeah(, one,,, ,two,,,,)",
+        ["yeah", "(", "one", ",", "two", ")"],
+        r#"
+dupe commas 5,6 = ","
+dupe commas 11,13 = ",,"
+dupe commas 14,15 = ","
+dupe commas 19,22 = ",,,"
+"#
+    );
 }

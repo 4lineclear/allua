@@ -33,6 +33,12 @@ impl ErrorMulti {
                 }
                 _ => self.lex.push(Expected(new, new_correct)),
             },
+            Lexical(DupeComma(new)) => match self.lex.last_mut() {
+                Some(DupeComma(old)) if new.from == old.to => {
+                    old.to = new.to;
+                }
+                _ => self.lex.push(DupeComma(new)),
+            },
             Lexical(lex) => self.lex.push(lex),
             Other(err) => self.other.push(err),
         }
@@ -54,6 +60,8 @@ impl From<LexicalError> for ErrorOnce {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LexicalError {
+    /// Duplicate commas
+    DupeComma(BSpan),
     /// Some type of unclosed block
     Unclosed(BSpan),
     /// (start inclusive, end exclusive)

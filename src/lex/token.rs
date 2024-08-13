@@ -126,7 +126,6 @@ impl LexKind {
     #[must_use]
     pub const fn name(self) -> &'static str {
         use LexKind::*;
-        use LiteralKind::*;
         match self {
             LineComment { .. } => "line comment",
             BlockComment { .. } => "block comment",
@@ -135,18 +134,7 @@ impl LexKind {
             RawIdent => "r#ident",
             InvalidIdent => "invalid ident",
             InvalidPrefix => "invalid prefix",
-            Literal { kind, .. } => match kind {
-                Int { .. } => "int",
-                Float { .. } => "float",
-                Char { .. } => "char",
-                Byte { .. } => "byte",
-                Str { .. } => "str",
-                ByteStr { .. } => "byte str",
-                CStr { .. } => "c str",
-                RawStr { .. } => "raw str",
-                RawByteStr { .. } => "raw byte str",
-                RawCStr { .. } => "raw c str",
-            },
+            Literal { .. } => "literal",
             Semi => "semicolon",
             Comma => "comma",
             Dot => "dot",

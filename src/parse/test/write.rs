@@ -192,6 +192,13 @@ pub fn write_errs(src: &str, errs: &ErrorMulti) -> String {
                 )
             }
             Eof(pos) => writeln!(out, r#"eof {pos} "#),
+            DupeComma(s) => writeln!(
+                out,
+                r#"dupe commas {},{} = "{}" "#,
+                s.from,
+                s.to,
+                &src[s.from..s.to]
+            ),
         }
     };
     errs.lex.iter().try_for_each(write_lex).unwrap();

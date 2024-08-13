@@ -187,10 +187,11 @@ impl<'a> Reader<'a> {
 
         let from = self.dummy();
 
+        let mut comma = true;
         loop {
-            match self.parse_call_params() {
-                Correct(true) => break,
-                Correct(false) => (),
+            match self.parse_call_params(comma) {
+                Correct(None) => break,
+                Correct(Some(found)) => comma = found,
                 InputEnd | OtherToken(_) => {
                     self.truncate(from);
                     return;
@@ -210,40 +211,36 @@ impl<'a> Reader<'a> {
     /// ..)
     ///
     /// `true` = `CloseParen`
-    fn parse_call_params(&mut self) -> Filtered<bool> {
-        let mut comma = false;
-        look_for!(match (
-            self,
-            token,
-            if comma {
-                vec![CloseParen, Ident, RawIdent, LITERAL]
-            } else {
-                vec![Comma, CloseParen, Ident, RawIdent, LITERAL]
-            }
-        ) {
-            Comma if !comma => comma = true,
-            CloseParen => break true.into(),
+    fn parse_call_params(&mut self, mut comma_found: bool) -> Filtered<Option<bool>> {
+        let err = |comma_found: bool| match comma_found {
+            true => vec![CloseParen, Ident, RawIdent, LITERAL],
+            false => vec![Comma, CloseParen, Ident, RawIdent, LITERAL],
+        };
+        look_for!(match (self, token, err(comma_found), span) {
+            CloseParen => break None.into(),
+            Comma if comma_found => self.push_err(LexicalError::DupeComma(span)),
+            Comma => comma_found = true,
             Ident | RawIdent => break self.parse_call_param_ident(self.span(token)),
             Literal { kind, suffix_start } => {
                 self.push_token(token::Value::new(self.symbol(token), kind, suffix_start));
-                break false.into();
+                break Some(false).into();
             }
         })
     }
 
-    fn parse_call_param_ident(&mut self, ident: BSpan) -> Filtered<bool> {
+    fn parse_call_param_ident(&mut self, ident: BSpan) -> Filtered<Option<bool>> {
         look_for!(match (self, token, [OpenParen, CloseParen, Comma]) {
-            OpenParen => {
-                self.parse_fn_call(ident, false);
-                break false.into();
-            }
             CloseParen => {
                 self.push_token(token::Expr::Var(self.symbol(ident)));
-                break true.into();
+                break None.into();
+            }
+            OpenParen => {
+                self.parse_fn_call(ident, false);
+                break Some(false).into();
             }
             Comma => {
                 self.push_token(token::Expr::Var(self.symbol(ident)));
-                break false.into();
+                break Some(true).into();
             }
         })
     }

@@ -14,10 +14,6 @@
 //
 // should support every operator that rust does
 
-// TODO: consider removing parse_ prefixes to methods
-//
-// it is somewhat repetetive to have it everywhere
-
 // FIX: expr system is broken
 //
 // should be fixed before adding operators.
@@ -85,7 +81,7 @@ impl<'a> Reader<'a> {
         match kind {
             // (?doc)comments or whitespace. skip normal comments
             _ if self.filter_comment_or_whitespace(token) => (),
-            Ident | RawIdent => self.parse_ident(span),
+            Ident | RawIdent => self.ident(span),
             OpenBrace => {
                 self.push_block(self.len());
                 self.dummy();
@@ -98,23 +94,17 @@ impl<'a> Reader<'a> {
 
         Y(())
     }
-    fn top_level_expected(&mut self, span: impl Into<AsBSpan>) {
-        match self.blocks_left() {
-            true => self.err_expected(span, EXPECTED_CLOSE),
-            false => self.err_expected(span, EXPECTED),
-        }
-    }
 
-    fn parse_ident(&mut self, span: BSpan) {
+    fn ident(&mut self, span: BSpan) {
         match self.range(span) {
             "let" => {
-                self.parse_decl(token::DeclKind::Let);
+                self.decl(token::DeclKind::Let);
             }
             "const" => {
-                self.parse_decl(token::DeclKind::Const);
+                self.decl(token::DeclKind::Const);
             }
             "fn" => {
-                self.parse_fn_def();
+                self.fn_def();
             }
             "if" => {
                 self.parse_if();
@@ -134,15 +124,15 @@ impl<'a> Reader<'a> {
                 self.set_at(set_idx, token::Token::Return);
             }
             _ => {
-                self.parse_fn_call(span, true);
+                self.fn_call(span, true);
             }
         }
     }
 
     /// `let|const` `<name>` `(?= <expr>)`;
-    fn parse_decl(&mut self, kind: token::DeclKind) -> bool {
+    fn decl(&mut self, kind: token::DeclKind) -> bool {
         // get either var-name or type-name
-        let Correct(first) = self.ident() else {
+        let Correct(first) = self.until_ident() else {
             return false;
         };
         let set_idx = self.dummy();
@@ -153,7 +143,7 @@ impl<'a> Reader<'a> {
 
         match self.eq_or_ident() {
             Correct(A(())) => {
-                self.parse_expr();
+                self.expr();
                 value = is_expr(self.get_token(set_idx + 1));
                 name = self.range(first);
                 type_name = None;
@@ -162,7 +152,7 @@ impl<'a> Reader<'a> {
                 if !self.until_eq().is_correct() {
                     return false;
                 };
-                self.parse_expr();
+                self.expr();
                 value = is_expr(self.get_token(set_idx + 1));
                 name = self.range(second);
                 type_name = Some(self.symbol(first));
@@ -180,7 +170,7 @@ impl<'a> Reader<'a> {
     }
 
     /// (..) | ..)
-    fn parse_fn_call(&mut self, span: BSpan, check_paren: bool) {
+    fn fn_call(&mut self, span: BSpan, check_paren: bool) {
         if check_paren && !self.open_paren().is_correct() {
             return;
         }
@@ -189,7 +179,7 @@ impl<'a> Reader<'a> {
 
         let mut comma = true;
         loop {
-            match self.parse_call_params(comma) {
+            match self.call_params(comma) {
                 Correct(None) => break,
                 Correct(Some(found)) => comma = found,
                 InputEnd | OtherToken(_) => {
@@ -211,7 +201,7 @@ impl<'a> Reader<'a> {
     /// ..)
     ///
     /// `true` = `CloseParen`
-    fn parse_call_params(&mut self, mut comma_found: bool) -> Filtered<Option<bool>> {
+    fn call_params(&mut self, mut comma_found: bool) -> Filtered<Option<bool>> {
         let err = |comma_found: bool| match comma_found {
             true => vec![CloseParen, Ident, RawIdent, LITERAL],
             false => vec![Comma, CloseParen, Ident, RawIdent, LITERAL],
@@ -220,7 +210,7 @@ impl<'a> Reader<'a> {
             CloseParen => break None.into(),
             Comma if comma_found => self.push_err(LexicalError::DupeComma(span)),
             Comma => comma_found = true,
-            Ident | RawIdent => break self.parse_call_param_ident(self.span(token)),
+            Ident | RawIdent => break self.call_param_ident(self.span(token)),
             Literal { kind, suffix_start } => {
                 self.push_token(token::Value::new(self.symbol(token), kind, suffix_start));
                 break Some(false).into();
@@ -228,14 +218,14 @@ impl<'a> Reader<'a> {
         })
     }
 
-    fn parse_call_param_ident(&mut self, ident: BSpan) -> Filtered<Option<bool>> {
+    fn call_param_ident(&mut self, ident: BSpan) -> Filtered<Option<bool>> {
         look_for!(match (self, token, [OpenParen, CloseParen, Comma]) {
             CloseParen => {
                 self.push_token(token::Expr::Var(self.symbol(ident)));
                 break None.into();
             }
             OpenParen => {
-                self.parse_fn_call(ident, false);
+                self.fn_call(ident, false);
                 break Some(false).into();
             }
             Comma => {
@@ -251,7 +241,7 @@ impl<'a> Reader<'a> {
             Ident | RawIdent => {
                 break look_for!(match (self, after, [CloseParen]) {
                     OpenParen => {
-                        self.parse_fn_call(span, false);
+                        self.fn_call(span, false);
                         break ().into();
                     }
                 });
@@ -267,7 +257,7 @@ impl<'a> Reader<'a> {
     fn parse_if(&mut self) {
         let set_idx = self.dummy();
         self.push_flow(set_idx);
-        let Some(token_start) = self.parse_if_body(set_idx) else {
+        let Some(token_start) = self.if_body(set_idx) else {
             return;
         };
         self.set_at(
@@ -283,14 +273,14 @@ impl<'a> Reader<'a> {
     }
 
     /// returns (dummy pos, block start)
-    fn parse_if_body(&mut self, set_idx: usize) -> Option<usize> {
+    fn if_body(&mut self, set_idx: usize) -> Option<usize> {
         let close = look_for!(match (self, token, [Ident, RawIdent]) {
             OpenBrace => break true.into(),
             Ident | RawIdent => {
                 let ident = self.span(token);
                 break look_for!(match (self, token, [OpenParen, CloseParen, Eof]) {
                     OpenParen => {
-                        self.parse_fn_call(ident, false);
+                        self.fn_call(ident, false);
                         break false.into();
                     }
                     OpenBrace => {
@@ -358,7 +348,7 @@ impl<'a> Reader<'a> {
         // catch else - if
         match after_else {
             B(ident) if self.range(ident) == "if" => {
-                let Some(token_start) = self.parse_if_body(orig_pos) else {
+                let Some(token_start) = self.if_body(orig_pos) else {
                     return false;
                 };
                 let token = token::Flow::If(
@@ -375,7 +365,7 @@ impl<'a> Reader<'a> {
                 self.top_level_expected(ident);
                 return false;
             }
-            _ => (),
+            A(()) => (),
         }
 
         let token_start = self.len();
@@ -404,8 +394,8 @@ impl<'a> Reader<'a> {
     }
 
     /// `fn` (?`<type>`) `<name>` ((?`<param>`?,)) { (?`<token>`?,) }
-    fn parse_fn_def(&mut self) {
-        let Correct(first) = self.ident() else {
+    fn fn_def(&mut self) {
+        let Correct(first) = self.until_ident() else {
             return;
         };
 
@@ -420,7 +410,7 @@ impl<'a> Reader<'a> {
 
         let set_idx = self.dummy();
         loop {
-            match self.parse_def_params() {
+            match self.def_params() {
                 Correct(true) => break,
                 Correct(false) => (),
                 OtherToken(_) | InputEnd => {
@@ -469,11 +459,11 @@ impl<'a> Reader<'a> {
     /// ..)
     ///
     /// `true` = `CloseParen`, `false` = `Param`
-    fn parse_def_params(&mut self) -> Filtered<bool> {
+    fn def_params(&mut self) -> Filtered<bool> {
         look_for!(match (self, token, [Ident, RawIdent, CloseParen], first) {
             CloseParen => break true.into(),
             Ident | RawIdent => {
-                let filtered = self.ident();
+                let filtered = self.until_ident();
                 let Correct(second) = filtered else {
                     return filtered.map(|_| false);
                 };
@@ -482,7 +472,7 @@ impl<'a> Reader<'a> {
                     CloseParen => break true.into(),
                     Comma => break false.into(),
                     Eq => {
-                        self.parse_expr();
+                        self.expr();
                         break false.into();
                     }
                 });
@@ -501,10 +491,10 @@ impl<'a> Reader<'a> {
     }
 
     /// parse a top level expr
-    fn parse_expr(&mut self) {
+    fn expr(&mut self) {
         look_for!(match (self, token, [], span) {
             Ident | RawIdent => {
-                self.parse_fn_call(span, true);
+                self.fn_call(span, true);
                 break ().into();
             }
             Literal { kind, suffix_start } => {
@@ -551,7 +541,7 @@ impl<'a> Reader<'a> {
     }
 
     /// `A(true)` if eof, `A(true)` if non ident, else `B(Ident)`
-    fn ident(&mut self) -> Filtered<BSpan> {
+    fn until_ident(&mut self) -> Filtered<BSpan> {
         look_for!(match (self, token, [Ident, RawIdent]) {
             Ident | RawIdent => break self.span(token).into(),
         })
@@ -571,6 +561,13 @@ impl<'a> Reader<'a> {
 
     fn err_expected(&mut self, span: impl Into<AsBSpan>, expected: impl Into<Vec<LexKind>>) {
         self.push_err(LexicalError::Expected(self.span(span), expected.into()));
+    }
+
+    fn top_level_expected(&mut self, span: impl Into<AsBSpan>) {
+        match self.blocks_left() {
+            true => self.err_expected(span, EXPECTED_CLOSE),
+            false => self.err_expected(span, EXPECTED),
+        }
     }
 
     fn err_eof(&mut self) {

@@ -252,24 +252,9 @@ impl<'a> Reader<'a> {
     }
 
     /// if <cond> {<token>}
-    fn parse_if(&mut self) {
+    fn parse_if(&mut self) -> bool {
         let set_idx = self.dummy();
-        self.push_flow(set_idx);
-        let Some(token_start) = self.if_body(set_idx) else {
-            return;
-        };
-        let token = Flow::If(
-            TSpan {
-                from: token_start,
-                to: self.len(),
-            },
-            None,
-        );
-        self.set_at(set_idx, token);
-    }
 
-    /// returns (dummy pos, block start)
-    fn if_body(&mut self, set_idx: usize) -> Option<usize> {
         let close = look_for!(match (self, token, [Ident, RawIdent]) {
             OpenBrace => break true.into(),
             Ident | RawIdent => {
@@ -289,18 +274,18 @@ impl<'a> Reader<'a> {
 
         let Correct(close) = close else {
             self.truncate(set_idx);
-            return None;
+            return false;
         };
 
         if !is_expr(self.get_token(set_idx + 1)) {
             self.truncate(set_idx);
-            return None;
+            return false;
         }
 
         // expect open brace if not found
         if !close && !self.open_brace().is_correct() {
             self.truncate(set_idx);
-            return None;
+            return false;
         };
 
         let token_start = self.len();
@@ -310,12 +295,23 @@ impl<'a> Reader<'a> {
                 X(()) => {
                     self.truncate(set_idx);
                     self.err_eof();
-                    return None;
+                    return false;
                 }
                 Y(()) => (),
-                Z(()) => break Some(token_start),
+                Z(()) => break,
             };
         }
+
+        let token = Flow::If(
+            TSpan {
+                from: token_start,
+                to: self.len(),
+            },
+            None,
+        );
+        self.push_flow(set_idx);
+        self.set_at(set_idx, token);
+        true.into()
     }
 
     /// returns false if parse not success
@@ -344,18 +340,19 @@ impl<'a> Reader<'a> {
         // catch else - if
         match after_else {
             B(ident) if self.range(ident) == "if" => {
-                let Some(token_start) = self.if_body(orig_pos) else {
-                    return false;
-                };
-                let token = Flow::If(
-                    orig_span,
-                    Some(TSpan {
-                        from: token_start,
-                        to: self.len(),
-                    }),
-                );
-                self.set_at(orig_pos, token);
-                return true;
+                let start = self.len();
+                let parsed = self.parse_if();
+                if parsed {
+                    let token = Flow::If(
+                        orig_span,
+                        Some(TSpan {
+                            from: start,
+                            to: self.len(),
+                        }),
+                    );
+                    self.set_at(orig_pos, token);
+                }
+                return parsed;
             }
             B(ident) => {
                 self.top_level_expected(ident);

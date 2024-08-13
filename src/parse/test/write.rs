@@ -82,10 +82,10 @@ impl<'a> Writer<'a> {
                 }
             }
             Token::Dummy => self.push("dummy"),
-            Token::Flow(Flow::If(_, el)) => {
+            Token::Flow(Flow::If(s, el)) => {
                 self.push("if");
-                if let Some(el) = el {
-                    self.scheduled.push((el.to, "else"));
+                if let Some(_) = el {
+                    self.scheduled.push((s.to, "else"));
                 }
             }
         };

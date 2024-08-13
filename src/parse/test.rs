@@ -418,6 +418,20 @@ fn empty_if() {
     do_test!(r#"if true {}"#, ["if", "true"], "",);
     do_test!(r#"if true() {}"#, ["if", "true", "(", ")"], "",);
     do_test!(r#"if true {} else {}"#, ["if", "true", "else"], "",);
+    do_test!(
+        r#"if true {} else if true {}"#,
+        ["if", "true", "else", "if", "true"],
+        "",
+    );
+    let mut chain_src = String::from("if true {}");
+    let mut chain_expected = vec!["if", "true"];
+    for _ in 0..20 {
+        chain_src.push_str(" else if true {}");
+        chain_expected.push("else");
+        chain_expected.push("if");
+        chain_expected.push("true");
+    }
+    do_test!(&chain_src, &chain_expected, "",);
 }
 
 #[test]
@@ -496,6 +510,35 @@ if yeah() {
 }"#,
         [
             "if", "yeah", "(", ")",
+            "const", "string", "hello", "=", "\"Hello\"",
+            "const", "string", "world", "=", "\"World\"",
+            "if", "yeah_inner", "(", "hello", ",", "world", ")",
+            "return", "\"${hello}, ${world}!\"",
+        ],
+        "",
+    );
+    do_test!(
+        r#"
+if yeah() {
+    const string hello = "Hello"
+    const string world = "World"
+    if yeah_inner(hello, world) {
+        return "${hello}, ${world}!"
+    }
+} else if yeah() {
+    const string hello = "Hello"
+    const string world = "World"
+    if yeah_inner(hello, world) {
+        return "${hello}, ${world}!"
+    }
+}"#,
+        [
+            "if", "yeah", "(", ")",
+            "const", "string", "hello", "=", "\"Hello\"",
+            "const", "string", "world", "=", "\"World\"",
+            "if", "yeah_inner", "(", "hello", ",", "world", ")",
+            "return", "\"${hello}, ${world}!\"",
+            "else", "if", "yeah", "(", ")",
             "const", "string", "hello", "=", "\"Hello\"",
             "const", "string", "world", "=", "\"World\"",
             "if", "yeah_inner", "(", "hello", ",", "world", ")",

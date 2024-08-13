@@ -1,5 +1,5 @@
 // TODO: consider adding tests to spans
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 use crate::{
     error::{ErrorMulti, ErrorOnce},
@@ -21,7 +21,7 @@ pub struct Reader<'a> {
     /// a backlog of blocks
     blocks: Vec<usize>,
     /// a backlog of control flows
-    flows: Vec<usize>,
+    flows: VecDeque<usize>,
 }
 
 impl<'a> Reader<'a> {
@@ -89,16 +89,16 @@ impl<'a> Reader<'a> {
     }
 
     pub fn push_flow(&mut self, pos: usize) {
-        self.flows.push(pos);
+        self.flows.push_back(pos);
     }
 
     pub fn last_flow(&mut self, run: impl Fn(&mut Self, usize) -> bool) -> bool {
-        let Some(&flow) = self.flows.last() else {
+        let Some(&flow) = self.flows.front() else {
             return false;
         };
         let used = run(self, flow);
         if used {
-            self.flows.pop();
+            self.flows.pop_front();
         }
         true
     }

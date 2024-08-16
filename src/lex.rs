@@ -58,7 +58,7 @@ pub fn validate_raw_str(input: &str, prefix_len: usize) -> Result<(), RawStrErro
 
 impl Cursor<'_> {
     /// Parses a token from the input string.
-    pub fn advance_token(&mut self) -> Lexeme {
+    pub fn advance(&mut self) -> Lexeme {
         self.token_pos = self.pos();
         let Some(first_char) = self.bump() else {
             return Lexeme::new(LexKind::Eof, 0);
@@ -615,7 +615,7 @@ impl Iterator for Cursor<'_> {
     type Item = Lexeme;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let token = self.advance_token();
+        let token = self.advance();
         (token.kind != LexKind::Eof).then_some(token)
     }
 }

@@ -33,6 +33,22 @@ impl Module {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Token {
+    Flow(Flow),
+    FnDef(FnDef),
+    Decl(Decl),
+    // NOTE: never have expr be under another token, instead refer to a span, etc
+    Expr(Expr),
+    Return,
+    // Value(Value),
+    Import(Import),
+    Block(TSpan),
+    FnDefParam(FnDefParam),
+    /// A dummy token. should never appear in the final output.
+    Dummy,
+}
+
 /// A user defined function
 ///
 /// Acts as both as a module, datatype and function
@@ -52,22 +68,6 @@ pub struct FnDefParam {
     pub value: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Token {
-    Flow(Flow),
-    FnDef(FnDef),
-    Decl(Decl),
-    // NOTE: never have expr be under another token, instead refer to a span, etc
-    Expr(Expr),
-    Return,
-    Value(Value),
-    Import(Import),
-    Block(TSpan),
-    FnDefParam(FnDefParam),
-    /// A dummy token. should never appear in the final output.
-    Dummy,
-}
-
 macro_rules! token_from {
     ($($name:ident),*) => {$(
         impl<'a> From<$name> for Token {
@@ -78,7 +78,13 @@ macro_rules! token_from {
     )*};
 }
 
-token_from!(FnDef, Decl, Expr, Value, Import, FnDefParam, Flow);
+token_from!(FnDef, Decl, Expr, Import, FnDefParam, Flow);
+
+impl From<ExprKind> for Token {
+    fn from(value: ExprKind) -> Self {
+        Self::Expr(Expr::from(value))
+    }
+}
 
 /// Control flow
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -112,22 +118,69 @@ pub struct Import {
     defer: bool,
 }
 
+// NOTE: consider turnin span to just a usize denoting the end
+
 /// <name>(<params>) | <var> | <value>
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Expr {
+pub struct Expr {
+    /// The total end of the expression
+    pub end: usize,
+    pub kind: ExprKind,
+}
+
+impl From<ExprKind> for Expr {
+    fn from(value: ExprKind) -> Self {
+        Self {
+            end: 0,
+            kind: value,
+        }
+    }
+}
+
+/// <name>(<params>) | <var> | <value>
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ExprKind {
     /// <name>(<params>)
-    FnCall(Symbol, TSpan),
+    FnCall(FnCall),
     /// <name>
     Var(Symbol),
     /// constant value
     Value(Value),
 }
 
-impl From<Value> for Expr {
-    fn from(value: Value) -> Self {
-        Self::Value(value)
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct FnCall {
+    pub name: Symbol,
+    /// true if ended with comma
+    pub comma: bool,
+    // /// true if call has been closed
+    // pub closed: bool,
 }
+
+macro_rules! impl_from {
+    ($($ty:ident),*) => { $(
+        impl From<$ty> for ExprKind {
+            fn from(value: $ty) -> Self {
+                Self::$ty(value)
+            }
+        }
+        impl From<$ty> for Expr {
+            fn from(value: $ty) -> Self {
+                Self {
+                    end: 0,
+                    kind: ExprKind::from(value)
+                }
+            }
+        }
+        // impl From<$ty> for Token {
+        //     fn from(value: $ty) -> Self {
+        //         Token::from(Expr::from(value))
+        //     }
+        // }
+    )*};
+}
+
+impl_from!(Value, FnCall);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Value {

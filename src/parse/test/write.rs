@@ -64,7 +64,7 @@ impl<'a> Writer<'a> {
             }
             Token::Expr(expr) => self.write_expr(expr),
             Token::Return => self.push("return"),
-            Token::Value(val) => self.write_val(val),
+            // Token::Value(val) => self.write_val(val),
             Token::Import(_) => todo!("imports not added yet"),
             Token::Block(span) => {
                 self.push("{");
@@ -84,7 +84,7 @@ impl<'a> Writer<'a> {
             Token::Dummy => self.push("dummy"),
             Token::Flow(Flow::If(s, el)) => {
                 self.push("if");
-                if let Some(_) = el {
+                if el.is_some() {
                     self.scheduled.push((s.to, "else"));
                 }
             }
@@ -94,32 +94,41 @@ impl<'a> Writer<'a> {
     }
 
     fn write_expr(&mut self, expr: Expr) {
-        match expr {
-            Expr::FnCall(name, param_span) => {
-                self.push(name.as_str());
-                self.push("(");
-                if !param_span.is_empty() {
-                    while self.pos + 1 < param_span.to {
-                        self.pos += 1;
-                        let token = self.items[self.pos as usize];
-                        match token {
-                            // prevent infinite recursion
-                            _ if token == Token::Expr(expr) => {
-                                panic!("same expr at index {} found: '{expr:#?}'", self.pos)
-                            }
-                            Token::Expr(expr) => self.write_expr(expr),
-                            _ => self.write_token(token),
-                        };
-                        self.push(",");
-                    }
-                    self.out.pop();
-                }
-                self.push(")");
-            }
-            Expr::Var(name) => self.write_var(name),
-            Expr::Value(val) => self.write_val(val),
+        match expr.kind {
+            ExprKind::FnCall(call) => self.write_fn_call(call, expr),
+            ExprKind::Var(name) => self.write_var(name),
+            ExprKind::Value(val) => self.write_val(val),
         };
     }
+
+    fn write_fn_call(&mut self, call: FnCall, expr: Expr) {
+        self.push(call.name);
+        self.push("(");
+        if self.pos == expr.end {
+            // if call.closed {
+            self.push(")");
+            // }
+            return;
+        }
+
+        while self.pos + 1 < expr.end {
+            self.pos += 1;
+            let token = self.items[self.pos as usize];
+            if let Token::Expr(new_expr) = token {
+                // prevent infinite recursion
+                if token == Token::Expr(expr) {
+                    panic!("same expr at index {} found: '{new_expr:#?}'", self.pos)
+                }
+                self.write_expr(new_expr)
+            } else {
+                self.write_token(token)
+            };
+            self.push(",");
+        }
+        self.out.pop();
+        self.push(")");
+    }
+
     fn write_var(&mut self, name: Symbol) {
         self.push(name);
     }

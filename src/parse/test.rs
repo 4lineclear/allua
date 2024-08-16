@@ -216,30 +216,25 @@ fn fn_fail_multi_param() {
 
 #[test]
 fn nested_fn() {
+    do_test!(r#"n0(n1())"#, ["n0", "(", "n1", "(", ")", ")"], r#""#);
     do_test!(
-        r#"print(print())"#,
-        ["print", "(", "print", "(", ")", ")"],
-        r#""#
-    );
-    do_test!(
-        r#"print(print(), print())"#,
-        ["print", "(", "print", "(", ")", ",", "print", "(", ")", ")"],
+        r#"n0(n1(), n2())"#,
+        ["n0", "(", "n1", "(", ")", ",", "n2", "(", ")", ")"],
         "",
     );
     do_test!(
-        r#"print(print(print(print(print(print(print()))))))"#,
+        r#"n0(n1(n2(n3(n4(n5(n6()))))))"#,
         [
-            "print", "(", "print", "(", "print", "(", "print", "(", "print", "(", "print", "(",
-            "print", "(", ")", ")", ")", ")", ")", ")", ")"
+            "n0", "(", "n1", "(", "n2", "(", "n3", "(", "n4", "(", "n5", "(", "n6", "(", ")", ")",
+            ")", ")", ")",
         ],
         "",
     );
     do_test!(
-        r#"print(print(print(), ""), print(print(one, two, three, yeah(five))))"#,
+        r#"n0(n1(n2(), ""), n3(n4(one, two, three, yeah(five))))"#,
         [
-            "print", "(", "print", "(", "print", "(", ")", ",", "\"\"", ")", ",", "print", "(",
-            "print", "(", "one", ",", "two", ",", "three", ",", "yeah", "(", "five", ")", ")", ")",
-            ")",
+            "n0", "(", "n1", "(", "n2", "(", ")", ",", "\"\"", ")", ",", "n3", "(", "n4", "(",
+            "one", ",", "two", ",", "three", ",", "yeah", "(", "five", ")", ")", ")", ")",
         ],
         "",
     );
@@ -554,7 +549,7 @@ fn repeat_commas() {
         "yeah(,,,)",
         ["yeah", "(", ")"],
         r#"
-dupe commas 5,8 = ",,,"
+expected pos 5,8 to be "ident | r#ident | literal | close parenthesis" but was ",,,"
 "#
     );
     do_test!(
@@ -568,7 +563,7 @@ dupe commas 9,11 = ",,"
         "yeah(, one,,, ,two,,,,)",
         ["yeah", "(", "one", ",", "two", ")"],
         r#"
-dupe commas 5,6 = ","
+expected pos 5,6 to be "ident | r#ident | literal | close parenthesis" but was ","
 dupe commas 11,13 = ",,"
 dupe commas 14,15 = ","
 dupe commas 19,22 = ",,,"

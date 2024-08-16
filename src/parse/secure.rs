@@ -1,97 +1,150 @@
 // TODO: consider adding tests to spans
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 
 use crate::{
     error::{ErrorMulti, ErrorOnce},
-    lex,
-    parse::{self, token},
+    lex::{Cursor, Lexeme},
+    parse::{self, ExprKind, LITERAL},
     span::{BSpan, TSpan},
     util::Symbol,
 };
 
-use super::AsBSpan;
+use super::{token::Token, AsBSpan, AsStr, Expr, LexKind};
 
 /// Reads tokens into a tokenstream
 #[derive(Debug, Default)]
 pub struct Reader<'a> {
-    pub cursor: lex::Cursor<'a>,
+    pub cursor: Cursor<'a>,
     errors: ErrorMulti,
-    tokens: Vec<token::Token>,
-    block_spans: HashMap<usize, BSpan>,
+    tokens: Vec<Token>,
     /// a backlog of blocks
-    blocks: Vec<usize>,
+    blocks: Vec<(usize, BSpan)>,
     /// a backlog of control flows
     flows: VecDeque<usize>,
+    /// a backlog of idents
+    exprs: VecDeque<usize>,
 }
 
 impl<'a> Reader<'a> {
     #[must_use]
     pub fn new(src: &'a str) -> Self {
         Self {
-            cursor: lex::Cursor::new(src),
+            cursor: Cursor::new(src),
             ..Default::default()
         }
     }
 
     #[must_use]
-    pub fn into_parts(
-        self,
-    ) -> (
-        lex::Cursor<'a>,
-        ErrorMulti,
-        Vec<token::Token>,
-        HashMap<usize, BSpan>,
-        Vec<usize>,
-    ) {
+    pub fn into_parts(self) -> (Cursor<'a>, ErrorMulti, Vec<Token>, Vec<(usize, BSpan)>) {
         let Reader {
             cursor,
             errors,
             tokens,
-            block_spans,
             blocks,
             flows: _,
+            exprs,
         } = self;
+        // println!("{exprs:#?}");
 
-        (cursor, errors, tokens, block_spans, blocks)
-    }
-
-    pub fn set_block(&mut self, token: lex::Lexeme) {
-        let Some(pos) = self.blocks.pop() else {
-            self.err_expected(token, parse::EXPECTED);
-            return;
-        };
-
-        self.tokens[pos] = token::Token::Block(TSpan {
-            from: pos,
-            to: self.len(),
-        });
-
-        let Some(it) = self.block_spans.get_mut(&pos) else {
-            self.push_err(ErrorOnce::Other(format!(
-                "invalid pos recieved while setting pos: {pos}"
-            )));
-            return;
-        };
-
-        it.to = self.cursor.pos();
+        (cursor, errors, tokens, blocks)
     }
 
     pub fn dummy(&mut self) -> usize {
         let idx = self.len();
-        self.tokens.push(token::Token::Dummy);
+        self.tokens.push(Token::Dummy);
         idx
     }
 
+    pub fn set_block(&mut self, token: Lexeme) {
+        let Some((pos, _)) = self.blocks.pop() else {
+            self.err_expected(token, parse::EXPECTED);
+            return;
+        };
+
+        self.tokens[pos] = Token::Block(TSpan {
+            from: pos,
+            to: self.len(),
+        });
+    }
+
     pub fn push_block(&mut self, pos: usize) {
-        self.blocks.push(pos);
-        self.block_spans
-            .insert(pos, BSpan::new(self.token_pos(), self.cursor.pos()));
+        self.blocks
+            .push((pos, BSpan::new(self.lex_pos(), self.cursor.pos())));
+    }
+
+    /// returns `Err(false)` if compiler error
+    pub fn get_expr(&mut self) -> Result<(usize, Expr), bool> {
+        let pos = self.first_ident().ok_or(true)?;
+        // println!("checking pos: {pos}");
+        match self.get_token(pos) {
+            // Some(Token::Expr(expr)) if expr.end != pos => match self.get_token(expr.end - 1) {
+            //     Some(Token::Expr(expr)) => Ok((pos, expr)),
+            //     Some(other) => {
+            //         self.compiler_error(format!(
+            //             "non expr token found at end {}: {other:#?}",
+            //             expr.end
+            //         ));
+            //         Err(false)
+            //     }
+            //     None => {
+            //         self.compiler_error(format!("no token found at end {}", expr.end));
+            //         Err(false)
+            //     }
+            // },
+            Some(Token::Expr(expr)) => Ok((pos, expr)),
+            Some(other) => {
+                self.compiler_error(format!("non expr token found at pos {pos}: {other:#?}"));
+                Err(false)
+            }
+            None => {
+                self.compiler_error(format!("no token found at pos {pos}"));
+                Err(false)
+            }
+        }
+    }
+
+    pub fn push_ident(&mut self, symbol: impl Into<AsStr<'a>>) {
+        // use LexKind::*;
+        let pos = self.len();
+        self.push_expr(ExprKind::Var(self.symbol(symbol)));
+        // println!("{:#?}", self.tokens);
+        if let Some((pos, mut expr)) = self.get_expr().ok() {
+            // println!("another one: {pos}");
+            let ExprKind::FnCall(call) = &mut expr.kind else {
+                return;
+            };
+            if expr.end != pos {
+                // TODO: error handling here
+                if expr.end + 1 != self.len() {
+                    // println!("DAMN 1");
+                    return;
+                }
+                if !call.comma {
+                    // println!("DAMN 2");
+                    return;
+                }
+            }
+            call.comma = false;
+            expr.end = self.len();
+            self.set_at(pos, expr);
+            // println!("{self:#?}");
+        }
+        self.exprs.push_back(pos);
+    }
+
+    pub fn pop_ident(&mut self) -> Option<usize> {
+        self.exprs.pop_front()
+    }
+
+    pub fn first_ident(&mut self) -> Option<usize> {
+        self.exprs.front().copied()
     }
 
     pub fn push_flow(&mut self, pos: usize) {
         self.flows.push_back(pos);
     }
 
+    // TODO: rename this
     pub fn last_flow(&mut self, run: impl Fn(&mut Self, usize) -> bool) -> bool {
         let Some(&flow) = self.flows.front() else {
             return false;
@@ -108,6 +161,7 @@ impl<'a> Reader<'a> {
         !self.blocks.is_empty()
     }
 
+    #[inline]
     #[must_use]
     pub fn len(&self) -> usize {
         self.tokens.len()
@@ -123,11 +177,7 @@ impl<'a> Reader<'a> {
     }
 
     /// Replace the given index with the given token
-    ///
-    /// # Panics
-    ///
-    /// Invalid index given or, when in debug, token at index was not dummy
-    pub fn set_at(&mut self, set_idx: usize, token: impl Into<token::Token>) {
+    pub fn set_at(&mut self, set_idx: usize, token: impl Into<Token>) {
         self.tokens[set_idx] = token.into();
     }
 
@@ -135,11 +185,28 @@ impl<'a> Reader<'a> {
         self.errors.push(err);
     }
 
-    pub fn push_token(&mut self, token: impl Into<token::Token>) {
+    pub fn compiler_error(&mut self, err: impl Into<String>) {
+        self.errors.push(ErrorOnce::Other(err.into()));
+    }
+
+    pub fn push_token(&mut self, token: impl Into<Token>) {
         self.tokens.push(token.into());
     }
 
-    pub fn pop_token(&mut self) -> Option<token::Token> {
+    /// push an expr
+    ///
+    /// # NOTE
+    ///
+    /// The span inputted with this will always be empty, so this
+    /// function should only be used by unit items.
+    pub fn push_expr(&mut self, kind: impl Into<ExprKind>) {
+        self.push_token(Expr {
+            end: self.len(),
+            kind: kind.into(),
+        });
+    }
+
+    pub fn pop_token(&mut self) -> Option<Token> {
         self.tokens.pop()
     }
 
@@ -148,57 +215,49 @@ impl<'a> Reader<'a> {
         self.cursor.src()
     }
 
-    #[allow(dead_code)]
-    #[must_use]
-    fn current_char(&self) -> char {
-        let pos = self.token_pos();
-        self.src()[pos..]
-            .chars()
-            .next()
-            .expect("couldn't get current char")
-    }
-
-    #[must_use]
-    pub fn current_range(&self, len: usize) -> &str {
-        self.range(self.token_span(len))
-    }
-
     pub fn span(&self, span: impl Into<AsBSpan>) -> BSpan {
         match span.into() {
             AsBSpan::Len(len) => self.token_span(len),
-            AsBSpan::Token(token) => self.token_span(token.len),
+            AsBSpan::Lex(token) => self.token_span(token.len),
             AsBSpan::Span(span) => span,
         }
     }
 
     #[must_use]
-    pub fn range(&self, span: impl Into<AsBSpan>) -> &str {
-        let span = self.span(span);
-        &self.src()[span.from..span.to]
+    pub fn str(&self, s: impl Into<AsStr<'a>>) -> &str {
+        use AsStr::*;
+        match s.into() {
+            Span(s) => {
+                let span = self.span(s);
+                &self.src()[span.from..span.to]
+            }
+            Symbol(s) => s.as_str(),
+            Str(s) => s,
+        }
     }
 
     #[must_use]
-    pub fn symbol(&self, span: impl Into<AsBSpan>) -> Symbol {
-        self.range(span).into()
+    pub fn symbol(&self, s: impl Into<AsStr<'a>>) -> Symbol {
+        self.str(s).into()
     }
 
     #[must_use]
-    pub fn get_token(&self, index: usize) -> Option<token::Token> {
+    pub fn get_token(&self, index: usize) -> Option<Token> {
         self.tokens.get(index).copied()
     }
 
     #[must_use]
-    pub fn last_token(&self) -> Option<token::Token> {
+    pub fn last_token(&self) -> Option<Token> {
         self.tokens.last().copied()
     }
 
     #[must_use]
-    pub const fn token_pos(&self) -> usize {
-        self.cursor.token_pos()
+    pub const fn lex_pos(&self) -> usize {
+        self.cursor.lex_pos()
     }
 
     #[must_use]
     const fn token_span(&self, len: usize) -> BSpan {
-        BSpan::new(self.token_pos(), self.token_pos() + len)
+        BSpan::new(self.lex_pos(), self.lex_pos() + len)
     }
 }

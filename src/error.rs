@@ -58,6 +58,10 @@ impl From<LexicalError> for ErrorOnce {
     }
 }
 
+// TODO: have expected use a u64 instead of a vec
+//
+// Should be a big space & speed improvement
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LexicalError {
     /// Duplicate commas

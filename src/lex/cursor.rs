@@ -55,9 +55,9 @@ impl Cursor<'_> {
         self.src.len() - self.chars.as_str().len()
     }
 
-    /// the position of the start of the previous token
+    /// the position of the start of the previous lexeme
     #[must_use]
-    pub const fn token_pos(&self) -> usize {
+    pub const fn lex_pos(&self) -> usize {
         self.token_pos
     }
 

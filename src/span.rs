@@ -37,4 +37,16 @@ impl TSpan {
     pub const fn is_empty(self) -> bool {
         self.from == self.to
     }
+
+    #[must_use]
+    pub const fn from(mut self, from: usize) -> Self {
+        self.from = from;
+        self
+    }
+
+    #[must_use]
+    pub const fn to(mut self, to: usize) -> Self {
+        self.to = to;
+        self
+    }
 }

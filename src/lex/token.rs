@@ -122,7 +122,83 @@ pub enum LexKind {
     Eof,
 }
 
+// /// the id of a lexkind
+// ///
+// /// considers alls literals to be the same
+// #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+// pub struct LexKindId(u64);
+//
+// impl Deref for LexKindId {
+//     type Target = u64;
+//
+//     fn deref(&self) -> &Self::Target {
+//         &self.0
+//     }
+// }
+//
+// impl BitOr for LexKind {
+//     type Output = LexKindId;
+//
+//     fn bitor(self, rhs: Self) -> Self::Output {
+//         self.id() | rhs.id()
+//     }
+// }
+//
+// impl BitOr for LexKindId {
+//     type Output = LexKindId;
+//
+//     fn bitor(self, rhs: Self) -> Self::Output {
+//         Self(self.0 + rhs.0)
+//     }
+// }
+//
 impl LexKind {
+    // NOTE: consider eliminating possible ids to be up to 31
+    // #[must_use]
+    // pub const fn id(self) -> LexKindId {
+    //     use LexKind::*;
+    //     let shift = match self {
+    //         LineComment { .. } => 1,
+    //         BlockComment { .. } => 2,
+    //         Whitespace => 3,
+    //         Ident => 4,
+    //         RawIdent => 5,
+    //         InvalidIdent => 6,
+    //         InvalidPrefix => 7,
+    //         Literal { .. } => 8,
+    //         Semi => 9,
+    //         Comma => 10,
+    //         Dot => 11,
+    //         OpenParen => 12,
+    //         CloseParen => 13,
+    //         OpenBrace => 14,
+    //         CloseBrace => 15,
+    //         OpenBracket => 16,
+    //         CloseBracket => 17,
+    //         At => 18,
+    //         Pound => 19,
+    //         Tilde => 20,
+    //         Question => 21,
+    //         Colon => 22,
+    //         Dollar => 23,
+    //         Eq => 24,
+    //         Bang => 25,
+    //         Lt => 26,
+    //         Gt => 27,
+    //         Minus => 28,
+    //         And => 29,
+    //         Or => 30,
+    //         Plus => 31,
+    //         Star => 32,
+    //         Slash => 33,
+    //         Caret => 34,
+    //         Percent => 35,
+    //         Unknown => 36,
+    //         Eof => 0,
+    //     };
+    //     LexKindId(1 << shift)
+    // }
+
     #[must_use]
     pub const fn name(self) -> &'static str {
         use LexKind::*;
